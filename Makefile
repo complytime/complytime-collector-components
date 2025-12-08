@@ -122,6 +122,8 @@ workspace: # Setup a go workspace with all modules
 #------------------------------------------------------------------------------
 
 generate-self-signed-cert: ## Generate self-signed certificates for compass and truthbeam
+	# remove all existing certs before generating new one
+	@find hack/self-signed-cert -mindepth 1 ! -name 'openssl.cnf' -delete
 	@echo "--- Generating self-signed certificates in $(CERT_DIR) ---"
 	# 1. Create the new Root CA key
 	@openssl genrsa -out $(CERT_DIR)/truthbeam.key 2048
