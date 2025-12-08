@@ -90,9 +90,20 @@ func (a *Applier) Extract(logRecord plog.LogRecord) (client.Policy, string, erro
 		return client.Policy{}, "", fmt.Errorf("missing required attributes: %s", strings.Join(missingAttrs, ", "))
 	}
 
+	policyEngineName := strings.TrimSpace(policySourceVal.Str())
+	policyRuleId := strings.TrimSpace(policyRuleIDVal.Str())
+
+	// Validate that values are not empty (OpenAPI validators may reject empty strings for required fields)
+	if policyEngineName == "" {
+		return client.Policy{}, "", fmt.Errorf("required attribute %s is empty", POLICY_ENGINE_NAME)
+	}
+	if policyRuleId == "" {
+		return client.Policy{}, "", fmt.Errorf("required attribute %s is empty", POLICY_RULE_ID)
+	}
+
 	policy := client.Policy{
-		PolicyEngineName: policySourceVal.Str(),
-		PolicyRuleId:     policyRuleIDVal.Str(),
+		PolicyEngineName: policyEngineName,
+		PolicyRuleId:     policyRuleId,
 	}
 
 	return policy, policyEvalStatusVal.AsString(), nil

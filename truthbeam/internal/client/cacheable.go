@@ -58,10 +58,17 @@ func (c *CacheableClient) Retrieve(ctx context.Context, policy Policy) (Complian
 	}
 
 	// Fetch metadata from API on cache miss
-	compliance, err := c.fetchMetadata(ctx, policy)
+	req := EnrichmentRequest{Policy: policy}
+	resp, err := c.callEnrich(ctx, req)
 	if err != nil {
+		c.logger.Error("enrichment API call failed",
+			zap.String("policy_rule_id", policy.PolicyRuleId),
+			zap.String("policy_engine_name", policy.PolicyEngineName),
+			zap.Error(err),
+		)
 		return Compliance{}, fmt.Errorf("failed to fetch metadata: %w", err)
 	}
+	compliance := resp.Compliance
 
 	// Use the same expiration as configured for the cache
 	c.cache.Set(policy.PolicyRuleId, compliance, cache.DefaultExpiration)
@@ -69,18 +76,12 @@ func (c *CacheableClient) Retrieve(ctx context.Context, policy Policy) (Complian
 	return compliance, nil
 }
 
-func (c *CacheableClient) fetchMetadata(ctx context.Context, policy Policy) (Compliance, error) {
-	req := EnrichmentRequest{Policy: policy}
-
-	resp, err := c.callEnrich(ctx, req)
-	if err != nil {
-		return Compliance{}, fmt.Errorf("failed to call metadata API: %w", err)
-	}
-
-	return resp.Compliance, nil
-}
-
 func (c *CacheableClient) callEnrich(ctx context.Context, req EnrichmentRequest) (*EnrichmentResponse, error) {
+	c.logger.Debug("calling compass enrich API",
+		zap.String("policy_rule_id", req.Policy.PolicyRuleId),
+		zap.String("policy_engine_name", req.Policy.PolicyEngineName),
+	)
+
 	resp, err := c.client.PostV1Enrich(ctx, req)
 	if err != nil {
 		return nil, err
@@ -92,9 +93,13 @@ func (c *CacheableClient) callEnrich(ctx context.Context, req EnrichmentRequest)
 		return nil, err
 	}
 
-	if parsedResp.JSON200 == nil {
-		return nil, fmt.Errorf("unexpected response status: %s", resp.Status)
+	if parsedResp.JSON200 != nil {
+		return parsedResp.JSON200, nil
 	}
 
-	return parsedResp.JSON200, nil
+	if parsedResp.JSONDefault != nil {
+		return nil, fmt.Errorf("API call failed with status %d: %s", parsedResp.JSONDefault.Code, parsedResp.JSONDefault.Message)
+	}
+
+	return nil, fmt.Errorf("unexpected response status: %s", resp.Status)
 }
