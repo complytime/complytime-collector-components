@@ -43,12 +43,19 @@ func NewCacheableClient(client *Client, logger *zap.Logger, ttl time.Duration) *
 // Retrieve gets compliance data for using policy data lookup values.
 // Cached metadata is used by default.
 func (c *CacheableClient) Retrieve(ctx context.Context, policy Policy) (Compliance, error) {
+	// Uses double-checked locking: first check avoids lock overhead on cache hits (common case).
+	// Second check prevents duplicate API calls when multiple goroutines concurrently miss the same key.
 	if value, found := c.cache.Get(policy.PolicyRuleId); found {
 		return value.(Compliance), nil
 	}
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
+	// Second check (prevents duplicate API calls on concurrent misses)
+	if value, found := c.cache.Get(policy.PolicyRuleId); found {
+		return value.(Compliance), nil
+	}
 
 	// Fetch metadata from API on cache miss
 	compliance, err := c.fetchMetadata(ctx, policy)
