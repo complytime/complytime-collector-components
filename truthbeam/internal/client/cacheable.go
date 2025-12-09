@@ -19,7 +19,7 @@ type CacheableClient struct {
 }
 
 // NewCacheableClient creates a new enriched client with caching capabilities.
-// If ttl is -1, the cache will never expire (go-cache treats durations < 1ns as no expiration).
+// If ttl is cache.NoExpiration, the cache will never expire.
 // Otherwise, items will expire after the specified TTL with cleanup
 // happening at half the TTL interval.
 func NewCacheableClient(client *Client, logger *zap.Logger, ttl time.Duration) *CacheableClient {

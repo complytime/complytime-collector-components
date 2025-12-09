@@ -24,7 +24,6 @@ func TestNewService(t *testing.T) {
 	assert.NotNil(t, service)
 	assert.Equal(t, mappers, service.set)
 	assert.Equal(t, scope, service.scope)
-	assert.Equal(t, "1.0.0", service.version)
 }
 
 func TestEnrich(t *testing.T) {

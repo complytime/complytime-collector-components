@@ -7,6 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/confighttp"
+
+	"github.com/complytime/complybeacon/truthbeam/internal/consts"
 )
 
 // The factory tests validate processor factory lifecycle including creation,
@@ -27,7 +29,7 @@ func TestCreateDefaultConfig(t *testing.T) {
 	assert.Equal(t, 30*time.Second, cfg.ClientConfig.Timeout, "Expected timeout 30s")
 	assert.Empty(t, cfg.ClientConfig.Compression, "Expected compression to be disabled by default for small payloads")
 	assert.Equal(t, 512*1024, cfg.ClientConfig.WriteBufferSize, "Expected write buffer size 512KB")
-	assert.Equal(t, time.Duration(-1), cfg.CacheTTL, "Expected default cache TTL to be 0 (no expiration)")
+	assert.Equal(t, consts.DefaultCacheTTL, cfg.CacheTTL, "Expected default cache TTL to be NoExpiration (no expiration)")
 }
 
 func TestCreateLogsProcessor(t *testing.T) {

@@ -15,17 +15,15 @@ import (
 
 // Service struct to hold dependencies if needed
 type Service struct {
-	set     mapper.Set
-	scope   mapper.Scope
-	version string
+	set   mapper.Set
+	scope mapper.Scope
 }
 
 // NewService initializes a new Service instance.
 func NewService(transformers mapper.Set, scope mapper.Scope) *Service {
 	return &Service{
-		set:     transformers,
-		scope:   scope,
-		version: "1.0.0",
+		set:   transformers,
+		scope: scope,
 	}
 }
 
