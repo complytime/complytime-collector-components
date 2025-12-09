@@ -6,6 +6,8 @@ import (
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
+
+	"github.com/complytime/complybeacon/truthbeam/internal/consts"
 )
 
 // Config defines configuration for the truthbeam processor.
@@ -20,6 +22,10 @@ var _ component.Config = (*Config)(nil)
 func (cfg *Config) Validate() error {
 	if cfg.ClientConfig.Endpoint == "" {
 		return errors.New("endpoint must be specified")
+	}
+	// Normalize cache TTL: 0 means no expiration (same as -1/NoExpiration)
+	if cfg.CacheTTL == 0 {
+		cfg.CacheTTL = consts.DefaultCacheTTL
 	}
 	return nil
 }

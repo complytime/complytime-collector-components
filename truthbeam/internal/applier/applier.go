@@ -93,7 +93,7 @@ func (a *Applier) Extract(logRecord plog.LogRecord) (client.Policy, string, erro
 	policyEngineName := strings.TrimSpace(policySourceVal.Str())
 	policyRuleId := strings.TrimSpace(policyRuleIDVal.Str())
 
-	// Validate that values are not empty (OpenAPI validators may reject empty strings for required fields)
+	// Validate that values are not empty
 	if policyEngineName == "" {
 		return client.Policy{}, "", fmt.Errorf("required attribute %s is empty", POLICY_ENGINE_NAME)
 	}
