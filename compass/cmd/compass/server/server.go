@@ -2,9 +2,10 @@ package server
 
 import (
 	"crypto/tls"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/gin-contrib/requestid"
@@ -19,7 +20,8 @@ import (
 func NewGinServer(service *compass.Service, port string) *http.Server {
 	swagger, err := api.GetSwagger()
 	if err != nil {
-		log.Fatalf("Error loading swagger spec\n: %s", err)
+		slog.Error("Error loading swagger spec", "err", err)
+		os.Exit(1)
 	}
 
 	// Clear out the servers array in the swagger spec, that skips validating
@@ -49,11 +51,13 @@ func SetupTLS(server *http.Server, config Config) (string, string) {
 	server.TLSConfig = tlsConfig
 
 	if config.Certificate.PublicKey == "" {
-		log.Fatal("Invalid certification configuration. Please add certConfig.cert to the configuration.")
+		slog.Error("Invalid certification configuration. Please add certConfig.cert to the configuration.")
+		os.Exit(1)
 	}
 
 	if config.Certificate.PrivateKey == "" {
-		log.Fatal("Invalid certification configuration. Please add certConfig.key to the configuration.")
+		slog.Error("Invalid certification configuration. Please add certConfig.key to the configuration.")
+		os.Exit(1)
 	}
 
 	return config.Certificate.PublicKey, config.Certificate.PrivateKey

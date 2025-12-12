@@ -1,7 +1,6 @@
 package service
 
 import (
-	"log"
 	"log/slog"
 	"net/http"
 
@@ -50,7 +49,10 @@ func (s *Service) PostV1Enrich(c *gin.Context) {
 	mapperPlugin, ok := s.set[mapper.ID(req.Policy.PolicyEngineName)]
 	if !ok {
 		// Use fallback
-		log.Printf("WARNING: Policy engine %s not found in mapper set, using basic mapper fallback", req.Policy.PolicyEngineName)
+		slog.Warn("Policy engine not found in mapper set, using basic mapper fallback",
+			slog.String("request_id", requestid.Get(c)),
+			slog.String("policy_engine_name", req.Policy.PolicyEngineName),
+		)
 		mapperPlugin = basic.NewBasicMapper()
 	}
 

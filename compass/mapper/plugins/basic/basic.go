@@ -1,7 +1,7 @@
 package basic
 
 import (
-	"log"
+	"log/slog"
 
 	"github.com/ossf/gemara/layer2"
 	"github.com/ossf/gemara/layer4"
@@ -63,7 +63,10 @@ func (m *Mapper) Map(policy api.Policy, scope mapper.Scope) api.Compliance {
 	for catalogId, plans := range m.plans {
 		catalog, ok := scope[catalogId]
 		if !ok {
-			log.Printf("WARNING: Catalog %s not found in scope for policy %s", catalogId, policy.PolicyRuleId)
+			slog.Warn("Catalog not found in scope for policy",
+				slog.String("catalog_id", catalogId),
+				slog.String("policy_rule_id", policy.PolicyRuleId),
+			)
 			failureReasons = append(failureReasons, "catalog not found")
 			continue
 		}
@@ -95,18 +98,29 @@ func (m *Mapper) Map(policy api.Policy, scope mapper.Scope) api.Compliance {
 
 				return compliance
 			} else {
-				log.Printf("WARNING: Control data not found for control ID %s in catalog %s for policy %s", procedureInfo.ControlID, catalogId, policy.PolicyRuleId)
+				slog.Warn("Control data not found for control ID in catalog for policy",
+					slog.String("control_id", procedureInfo.ControlID),
+					slog.String("catalog_id", catalogId),
+					slog.String("policy_rule_id", policy.PolicyRuleId),
+				)
 				failureReasons = append(failureReasons, "control data not found")
 			}
 		} else {
-			log.Printf("WARNING: Policy rule %s not found in procedures for catalog %s", policy.PolicyRuleId, catalogId)
+			slog.Warn("Policy rule not found in procedures for catalog",
+				slog.String("policy_rule_id", policy.PolicyRuleId),
+				slog.String("catalog_id", catalogId),
+			)
 			failureReasons = append(failureReasons, "policy rule not found")
 		}
 	}
 
 	// Log final failure if no mapping was found
 	if len(failureReasons) > 0 {
-		log.Printf("WARNING: Failed to map policy %s from engine %s. Reasons: %v", policy.PolicyRuleId, policy.PolicyEngineName, failureReasons)
+		slog.Warn("Failed to map policy from engine",
+			slog.String("policy_rule_id", policy.PolicyRuleId),
+			slog.String("policy_engine_name", policy.PolicyEngineName),
+			slog.Any("reasons", failureReasons),
+		)
 	}
 
 	return api.Compliance{
