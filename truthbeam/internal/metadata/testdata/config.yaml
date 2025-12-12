@@ -15,6 +15,6 @@ client_config:
 # Cache TTL for compliance metadata
 # Options:
 # - 1m, 5m, 10m, 30m, 1h, 6h, 12h, 24h, 72h, 168h (duration format)
-# - 0 or -1ns (no expiration - cache forever) - DEFAULT
+# - 0 (no expiration - cache forever) - DEFAULT
 # - Default: NoExpiration (no expiration) - compliance metadata changes infrequently
 cache_ttl: 0
