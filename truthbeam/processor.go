@@ -39,15 +39,15 @@ func newTruthBeamProcessor(conf component.Config, set processor.Settings) (*trut
 }
 
 func (t *truthBeamProcessor) processLogs(ctx context.Context, ld plog.Logs) (plog.Logs, error) {
-	rl := ld.ResourceLogs()
-	for i := 0; i < rl.Len(); i++ {
-		rs := rl.At(i)
-		ilss := rs.ScopeLogs()
-		for j := 0; j < ilss.Len(); j++ {
-			ils := ilss.At(j)
-			logs := ils.LogRecords()
-			for k := 0; k < logs.Len(); k++ {
-				logRecord := logs.At(k)
+	allResourceLogs := ld.ResourceLogs()
+	for i := 0; i < allResourceLogs.Len(); i++ {
+		resourceLogs := allResourceLogs.At(i)
+		resourceScopeLogs := resourceLogs.ScopeLogs()
+		for j := 0; j < resourceScopeLogs.Len(); j++ {
+			scopeLogs := resourceScopeLogs.At(j)
+			logRecords := scopeLogs.LogRecords()
+			for k := 0; k < logRecords.Len(); k++ {
+				logRecord := logRecords.At(k)
 
 				policy, status, err := t.applier.Extract(logRecord)
 				if err != nil {
