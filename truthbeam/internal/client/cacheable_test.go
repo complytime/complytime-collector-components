@@ -15,7 +15,8 @@ func TestNewCacheableClient(t *testing.T) {
 	baseClient, err := NewClient("http://localhost:8080")
 	assert.NoError(t, err)
 
-	cacheableClient := NewCacheableClient(baseClient, zap.NewNop(), 0)
+	cacheableClient, err := NewCacheableClient(baseClient, zap.NewNop(), 0, 0)
+	require.NoError(t, err)
 	assert.NotNil(t, cacheableClient)
 	assert.Equal(t, baseClient, cacheableClient.client)
 	assert.NotNil(t, cacheableClient.cache)
@@ -65,7 +66,7 @@ func TestCacheableClient_Retrieve(t *testing.T) {
 					},
 					expectedError:     false,
 					expectedControlId: "OSPS-QA-01.01",
-					expectedApiCalls:  1,
+					expectedApiCalls:  0,
 				},
 			},
 		},
@@ -99,7 +100,7 @@ func TestCacheableClient_Retrieve(t *testing.T) {
 					},
 					expectedError:     false,
 					expectedControlId: "OSPS-QA-01.01",
-					expectedApiCalls:  1,
+					expectedApiCalls:  0,
 				},
 				{
 					policy: Policy{
@@ -108,7 +109,7 @@ func TestCacheableClient_Retrieve(t *testing.T) {
 					},
 					expectedError:     false,
 					expectedControlId: "OSPS-QA-01.01",
-					expectedApiCalls:  1,
+					expectedApiCalls:  0,
 				},
 			},
 		},
@@ -255,6 +256,49 @@ func TestCacheableClient_Retrieve(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:        "Success/CompositeKeyDifferentEngines",
+			setupServer: workingServer,
+			policy: Policy{
+				PolicyRuleId:     "test-policy-123",
+				PolicyEngineName: "test-engine",
+			},
+			calls: []struct {
+				policy            Policy
+				expectedError     bool
+				expectedErrorMsg  string
+				expectedControlId string
+				expectedApiCalls  int
+			}{
+				{
+					policy: Policy{
+						PolicyRuleId:     "test-policy-123",
+						PolicyEngineName: "engine-a",
+					},
+					expectedError:     false,
+					expectedControlId: "OSPS-QA-01.01",
+					expectedApiCalls:  1,
+				},
+				{
+					policy: Policy{
+						PolicyRuleId:     "test-policy-123",
+						PolicyEngineName: "engine-b",
+					},
+					expectedError:     false,
+					expectedControlId: "OSPS-QA-01.01",
+					expectedApiCalls:  2,
+				},
+				{
+					policy: Policy{
+						PolicyRuleId:     "test-policy-123",
+						PolicyEngineName: "engine-a",
+					},
+					expectedError:     false,
+					expectedControlId: "OSPS-QA-01.01",
+					expectedApiCalls:  2,
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -267,7 +311,8 @@ func TestCacheableClient_Retrieve(t *testing.T) {
 			baseClient, err := NewClient(server.URL)
 			require.NoError(t, err)
 
-			cacheableClient := NewCacheableClient(baseClient, zap.NewNop(), 0)
+			cacheableClient, err := NewCacheableClient(baseClient, zap.NewNop(), 0, 0)
+			require.NoError(t, err)
 
 			var firstCompliance Compliance
 			for i, call := range tt.calls {
@@ -286,8 +331,9 @@ func TestCacheableClient_Retrieve(t *testing.T) {
 					assert.Equal(t, call.expectedControlId, compliance.Control.Id)
 					if i == 0 {
 						firstCompliance = compliance
-					} else if call.policy.PolicyRuleId == tt.calls[0].policy.PolicyRuleId {
-						// Verify cached content matches when using the same policy
+					} else if call.policy.PolicyRuleId == tt.calls[0].policy.PolicyRuleId &&
+						call.policy.PolicyEngineName == tt.calls[0].policy.PolicyEngineName {
+						// Verify cached content matches when using the same composite key
 						assert.Equal(t, firstCompliance.Control.Id, compliance.Control.Id)
 						assert.Equal(t, firstCompliance.Control.CatalogId, compliance.Control.CatalogId)
 						assert.Equal(t, firstCompliance.EnrichmentStatus, compliance.EnrichmentStatus)
@@ -297,7 +343,8 @@ func TestCacheableClient_Retrieve(t *testing.T) {
 						assert.Equal(t, call.expectedApiCalls, actualCountAfter)
 					} else {
 						// For cache hits, verify no new API calls were made
-						if i > 0 && call.policy.PolicyRuleId == tt.calls[0].policy.PolicyRuleId {
+						if i > 0 && call.policy.PolicyRuleId == tt.calls[0].policy.PolicyRuleId &&
+							call.policy.PolicyEngineName == tt.calls[0].policy.PolicyEngineName {
 							assert.Equal(t, expectedCountBefore, actualCountAfter)
 						}
 					}

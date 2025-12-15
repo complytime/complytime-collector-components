@@ -4,11 +4,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/patrickmn/go-cache"
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/config/confighttp"
 
-	"github.com/complytime/complybeacon/truthbeam/internal/consts"
+	"github.com/complytime/complybeacon/truthbeam/internal/client"
 )
 
 // The config tests are table-driven tests to validate configuration validation
@@ -98,10 +97,7 @@ func TestConfigStruct(t *testing.T) {
 	assert.NoError(t, err, "Config with valid endpoint should pass validation")
 }
 
-// TestCacheTTLNormalization tests the cache TTL normalization logic
-// as documented in truthbeam/internal/metadata/testdata/config.yaml.
-// Multiple formats are expected: duration strings (1m, 5m, 10m, 30m, 1h, 6h, 12h,
-// 24h, 72h, 168h) and 0 (no expiration - cache forever).
+// TestCacheTTLNormalization tests the cache TTL normalization logic.
 func TestCacheTTLNormalization(t *testing.T) {
 	tests := []struct {
 		name            string
@@ -110,9 +106,9 @@ func TestCacheTTLNormalization(t *testing.T) {
 		shouldNormalize bool
 	}{
 		{
-			name:            "zero duration normalizes to NoExpiration",
+			name:            "zero duration normalizes to DefaultCacheTTL",
 			cacheTTL:        0,
-			expectedAfter:   cache.NoExpiration,
+			expectedAfter:   client.DefaultCacheTTL,
 			shouldNormalize: true,
 		},
 		{
@@ -175,12 +171,6 @@ func TestCacheTTLNormalization(t *testing.T) {
 			expectedAfter:   168 * time.Hour,
 			shouldNormalize: false,
 		},
-		{
-			name:            "NoExpiration preserved",
-			cacheTTL:        cache.NoExpiration,
-			expectedAfter:   cache.NoExpiration,
-			shouldNormalize: false,
-		},
 	}
 
 	for _, tt := range tests {
@@ -198,7 +188,7 @@ func TestCacheTTLNormalization(t *testing.T) {
 
 			if tt.shouldNormalize {
 				assert.Equal(t, tt.expectedAfter, cfg.CacheTTL)
-				assert.Equal(t, consts.DefaultCacheTTL, cfg.CacheTTL)
+				assert.Equal(t, client.DefaultCacheTTL, cfg.CacheTTL)
 			} else {
 				assert.Equal(t, tt.expectedAfter, cfg.CacheTTL)
 			}
@@ -219,8 +209,60 @@ func TestCacheTTLWithValidEndpoint(t *testing.T) {
 	err := cfg.Validate()
 	assert.NoError(t, err,
 		"Config with valid endpoint and zero cache TTL should pass validation")
-	assert.Equal(t, cache.NoExpiration, cfg.CacheTTL,
-		"Zero cache TTL should be normalized to NoExpiration")
-	assert.Equal(t, consts.DefaultCacheTTL, cfg.CacheTTL,
-		"Normalized value should match DefaultCacheTTL")
+	assert.Equal(t, client.DefaultCacheTTL, cfg.CacheTTL,
+		"Zero cache TTL should be normalized to DefaultCacheTTL")
+}
+
+// TestMaxCacheSizeMBValidation tests the max_cache_size_mb configuration validation
+func TestMaxCacheSizeMBValidation(t *testing.T) {
+	tests := []struct {
+		name           string
+		maxCacheSizeMB int
+		expectedAfter  int
+		expectError    bool
+	}{
+		{
+			name:           "zero max cache size normalizes to default",
+			maxCacheSizeMB: 0,
+			expectedAfter:  client.DefaultMaxCacheSizeMB,
+			expectError:    false,
+		},
+		{
+			name:           "positive max cache size preserved",
+			maxCacheSizeMB: 50,
+			expectedAfter:  50,
+			expectError:    false,
+		},
+		{
+			name:           "negative max cache size should fail",
+			maxCacheSizeMB: -1,
+			expectedAfter:  0,
+			expectError:    true,
+		},
+		{
+			name:           "large max cache size preserved",
+			maxCacheSizeMB: 1000,
+			expectedAfter:  1000,
+			expectError:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{
+				ClientConfig: confighttp.ClientConfig{
+					Endpoint: "http://localhost:8081",
+				},
+				MaxCacheSizeMB: tt.maxCacheSizeMB,
+			}
+
+			err := cfg.Validate()
+			if tt.expectError {
+				assert.Error(t, err, "Expected validation error")
+			} else {
+				assert.NoError(t, err, "Expected no validation error")
+				assert.Equal(t, tt.expectedAfter, cfg.MaxCacheSizeMB)
+			}
+		})
+	}
 }

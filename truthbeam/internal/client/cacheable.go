@@ -3,58 +3,67 @@ package client
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
-	"github.com/patrickmn/go-cache"
 	"go.uber.org/zap"
 )
+
+// Cache defines a simple cache interface for storing Compliance data.
+type Cache interface {
+	// Get retrieves a value from the cache by key.
+	Get(key string) (Compliance, bool)
+	// Set stores a value in the cache with the given key.
+	Set(key string, value Compliance) error
+	// Delete removes a value from the cache by key.
+	Delete(key string) error
+}
 
 // CacheableClient wraps the basic client with that leverages a caching mechanism.
 type CacheableClient struct {
 	client *Client
-	cache  *cache.Cache
-	mu     sync.Mutex
+	cache  Cache
 	logger *zap.Logger
 }
 
 // NewCacheableClient creates a new enriched client with caching capabilities.
-// If ttl is cache.NoExpiration, the cache will never expire.
-// Otherwise, items will expire after the specified TTL with cleanup
-// happening at half the TTL interval.
-func NewCacheableClient(client *Client, logger *zap.Logger, ttl time.Duration) *CacheableClient {
-	var cleanupInterval time.Duration
-	if ttl == cache.NoExpiration {
-		cleanupInterval = cache.NoExpiration
-	} else {
-		cleanupInterval = ttl / 2
+// To use a different cache backend, use NewCacheableClientWithCache instead.
+func NewCacheableClient(client *Client, logger *zap.Logger, ttl time.Duration, maxCacheSizeMB int) (*CacheableClient, error) {
+	// Use default max cache size if not specified
+	if maxCacheSizeMB == 0 {
+		maxCacheSizeMB = DefaultMaxCacheSizeMB
 	}
 
-	cacheInstance := cache.New(ttl, cleanupInterval)
+	cache, err := NewBigCacheStore(context.Background(), ttl, maxCacheSizeMB)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create cache: %w", err)
+	}
 
-	ec := &CacheableClient{
+	return NewCacheableClientWithCache(client, logger, cache), nil
+}
+
+// NewCacheableClientWithCache creates a new cacheable client with a custom cache implementation.
+func NewCacheableClientWithCache(client *Client, logger *zap.Logger, cache Cache) *CacheableClient {
+	return &CacheableClient{
 		client: client,
-		cache:  cacheInstance,
+		cache:  cache,
 		logger: logger,
 	}
-	return ec
+}
+
+// cacheKey generates a composite cache key from policy engine name and policy rule id.
+func cacheKey(policyEngineName, policyRuleId string) string {
+	return policyEngineName + CacheKeySeparator + policyRuleId
 }
 
 // Retrieve gets compliance data for using policy data lookup values.
 // Cached metadata is used by default.
 func (c *CacheableClient) Retrieve(ctx context.Context, policy Policy) (Compliance, error) {
-	// Uses double-checked locking: first check avoids lock overhead on cache hits (common case).
-	// Second check prevents duplicate API calls when multiple goroutines concurrently miss the same key.
-	if value, found := c.cache.Get(policy.PolicyRuleId); found {
-		return value.(Compliance), nil
-	}
+	key := cacheKey(policy.PolicyEngineName, policy.PolicyRuleId)
 
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	// Second check (prevents duplicate API calls on concurrent misses)
-	if value, found := c.cache.Get(policy.PolicyRuleId); found {
-		return value.(Compliance), nil
+	// Cache implementation is already concurrent, so we can check directly
+	compliance, found := c.cache.Get(key)
+	if found {
+		return compliance, nil
 	}
 
 	// Fetch metadata from API on cache miss
@@ -68,10 +77,16 @@ func (c *CacheableClient) Retrieve(ctx context.Context, policy Policy) (Complian
 		)
 		return Compliance{}, fmt.Errorf("failed to fetch metadata: %w", err)
 	}
-	compliance := resp.Compliance
+	compliance = resp.Compliance
 
-	// Use the same expiration as configured for the cache
-	c.cache.Set(policy.PolicyRuleId, compliance, cache.DefaultExpiration)
+	// Store in cache (errors are logged but don't fail the request)
+	if setErr := c.cache.Set(key, compliance); setErr != nil {
+		c.logger.Warn("failed to set cache value",
+			zap.String("policy_rule_id", policy.PolicyRuleId),
+			zap.String("policy_engine_name", policy.PolicyEngineName),
+			zap.Error(setErr),
+		)
+	}
 
 	return compliance, nil
 }
