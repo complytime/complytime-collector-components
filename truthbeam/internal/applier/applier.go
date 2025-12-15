@@ -57,7 +57,7 @@ func (a *Applier) Apply(logRecord plog.LogRecord, compliance client.Compliance, 
 		attrs.PutStr(COMPLIANCE_REMEDIATION_DESCRIPTION, *compliance.Control.RemediationDescription)
 	}
 
-	if compliance.Risk != nil {
+	if compliance.Risk != nil && compliance.Risk.Level != "" {
 		attrs.PutStr(COMPLIANCE_RISK_LEVEL, string(compliance.Risk.Level))
 	}
 
