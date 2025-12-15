@@ -267,7 +267,9 @@ func createTestProcessor(t *testing.T, endpoint string) *truthBeamProcessor {
 	// Create client for testing
 	baseClient, err := client.NewClient(endpoint)
 	require.NoError(t, err)
-	processor.client = client.NewCacheableClient(baseClient, settings.Logger, 0)
+	cacheableClient, err := client.NewCacheableClient(baseClient, settings.Logger, 0, 0)
+	require.NoError(t, err)
+	processor.client = cacheableClient
 
 	return processor
 }

@@ -3,6 +3,7 @@ package truthbeam
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/pdata/plog"
@@ -91,7 +92,11 @@ func (t *truthBeamProcessor) start(ctx context.Context, host component.Host) err
 		return err
 	}
 
-	t.client = client.NewCacheableClient(baseClient, t.logger, t.config.CacheTTL)
+	cacheableClient, err := client.NewCacheableClient(baseClient, t.logger, t.config.CacheTTL, t.config.MaxCacheSizeMB)
+	if err != nil {
+		return fmt.Errorf("failed to create cacheable client: %w", err)
+	}
+	t.client = cacheableClient
 
 	return nil
 }
