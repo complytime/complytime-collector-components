@@ -5,8 +5,10 @@ import (
 )
 
 // DefaultCacheTTL is the default cache TTL for compliance metadata.
-// Zero value means no expiration, as compliance metadata changes infrequently.
-const DefaultCacheTTL = time.Duration(0)
+// Set to 24 hours as compliance metadata changes infrequently.
+// A zero value means no expiration, but we use a long TTL to balance
+// cache efficiency with eventual consistency.
+const DefaultCacheTTL = 24 * time.Hour
 
 // DefaultMaxCacheSizeMB is the default maximum cache size in megabytes.
 // Set to 512MB to provide reasonable capacity for compliance metadata caching
