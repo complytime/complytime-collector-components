@@ -24,7 +24,7 @@ func (cfg *Config) Validate() error {
 	if cfg.ClientConfig.Endpoint == "" {
 		return errors.New("endpoint must be specified")
 	}
-	// Normalize cache TTL: 0 means no expiration (same as -1/NoExpiration)
+	// Normalize cache TTL: 0 means use default (24 hours for compliance metadata)
 	if cfg.CacheTTL == 0 {
 		cfg.CacheTTL = client.DefaultCacheTTL
 	}
@@ -35,5 +35,6 @@ func (cfg *Config) Validate() error {
 	if cfg.MaxCacheSizeMB < 0 {
 		return errors.New("max_cache_size_mb must be non-negative")
 	}
+
 	return nil
 }

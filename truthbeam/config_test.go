@@ -241,8 +241,8 @@ func TestMaxCacheSizeMBValidation(t *testing.T) {
 		},
 		{
 			name:           "large max cache size preserved",
-			maxCacheSizeMB: 1000,
-			expectedAfter:  1000,
+			maxCacheSizeMB: 500,
+			expectedAfter:  500,
 			expectError:    false,
 		},
 	}
