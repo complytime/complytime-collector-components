@@ -14,7 +14,6 @@
     "risk": {
       "level": "High"
     },
-    "status": "NON_COMPLIANT",
-    "enrichmentStatus": "success"
+    "enrichmentStatus": "Success"
   }
 }

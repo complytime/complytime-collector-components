@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/collector/processor"
 	"go.opentelemetry.io/collector/processor/processorhelper"
 
+	"github.com/complytime/complybeacon/truthbeam/internal/client"
 	"github.com/complytime/complybeacon/truthbeam/internal/metadata"
 )
 
@@ -33,7 +34,9 @@ func createDefaultConfig() component.Config {
 	clientConfig.WriteBufferSize = 512 * 1024
 
 	return &Config{
-		ClientConfig: clientConfig,
+		ClientConfig:   clientConfig,
+		CacheTTL:       client.DefaultCacheTTL,
+		MaxCacheSizeMB: client.DefaultMaxCacheSizeMB,
 	}
 }
 

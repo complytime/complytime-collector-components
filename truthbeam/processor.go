@@ -3,12 +3,14 @@ package truthbeam
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/collector/processor"
 	"go.uber.org/zap"
 
+	"github.com/complytime/complybeacon/truthbeam/internal/applier"
 	"github.com/complytime/complybeacon/truthbeam/internal/client"
 )
 
@@ -18,9 +20,8 @@ type truthBeamProcessor struct {
 
 	logger *zap.Logger
 
-	client *client.Client
-
-	// TODO: Cache results by policy id
+	client  *client.CacheableClient
+	applier *applier.Applier
 }
 
 func newTruthBeamProcessor(conf component.Config, set processor.Settings) (*truthBeamProcessor, error) {
@@ -34,25 +35,44 @@ func newTruthBeamProcessor(conf component.Config, set processor.Settings) (*trut
 		telemetry: set.TelemetrySettings,
 		logger:    set.Logger,
 		client:    nil,
+		applier:   applier.NewApplier(set.Logger),
 	}, nil
 }
 
 func (t *truthBeamProcessor) processLogs(ctx context.Context, ld plog.Logs) (plog.Logs, error) {
-	rl := ld.ResourceLogs()
-	for i := 0; i < rl.Len(); i++ {
-		rs := rl.At(i)
-		ilss := rs.ScopeLogs()
-		for j := 0; j < ilss.Len(); j++ {
-			ils := ilss.At(j)
-			logs := ils.LogRecords()
-			resource := rs.Resource()
-			for k := 0; k < logs.Len(); k++ {
-				logRecord := logs.At(k)
-				err := client.ApplyAttributes(ctx, t.client, t.config.ClientConfig.Endpoint, resource, logRecord)
+	allResourceLogs := ld.ResourceLogs()
+	for i := 0; i < allResourceLogs.Len(); i++ {
+		resourceLogs := allResourceLogs.At(i)
+		resourceScopeLogs := resourceLogs.ScopeLogs()
+		for j := 0; j < resourceScopeLogs.Len(); j++ {
+			scopeLogs := resourceScopeLogs.At(j)
+			logRecords := scopeLogs.LogRecords()
+			for k := 0; k < logRecords.Len(); k++ {
+				logRecord := logRecords.At(k)
+
+				policy, status, err := t.applier.Extract(logRecord)
+				if err != nil {
+					t.logger.Error("Failed to extract evidence from log record", zap.Error(err))
+					continue
+				}
+
+				// Get cached data
+				enrichment, err := t.client.Retrieve(ctx, policy)
 				if err != nil {
 					// We don't want to return an error here to ensure the evidence
-					// is not dropped. It will just be uncategorized.
-					t.logger.Error("failed to apply attributes", zap.Error(err))
+					// is not dropped. It will just be unmapped.
+
+					t.logger.Error("failed to get enrichment",
+						zap.String("policy_id", policy.PolicyRuleId),
+						zap.Error(err))
+					continue
+				}
+
+				err = t.applier.Apply(logRecord, enrichment, status)
+				if err != nil {
+					t.logger.Error("failed to apply enrichment",
+						zap.String("policy_id", policy.PolicyRuleId),
+						zap.Error(err))
 				}
 			}
 		}
@@ -66,10 +86,17 @@ func (t *truthBeamProcessor) start(ctx context.Context, host component.Host) err
 	if err != nil {
 		return err
 	}
-	t.client, err = client.NewClient(t.config.ClientConfig.Endpoint, client.WithHTTPClient(httpClient))
+
+	baseClient, err := client.NewClient(t.config.ClientConfig.Endpoint, client.WithHTTPClient(httpClient))
 	if err != nil {
 		return err
 	}
+
+	cacheableClient, err := client.NewCacheableClient(baseClient, t.logger, t.config.CacheTTL, t.config.MaxCacheSizeMB)
+	if err != nil {
+		return fmt.Errorf("failed to create cacheable client: %w", err)
+	}
+	t.client = cacheableClient
 
 	return nil
 }

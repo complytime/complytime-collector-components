@@ -3,7 +3,7 @@ package proofwatch
 import (
 	"encoding/json"
 	"errors"
-	"log"
+	"log/slog"
 	"time"
 
 	ocsf "github.com/Santiago-Labs/go-ocsf/ocsf/v1_5_0"
@@ -37,7 +37,7 @@ func (o OCSFEvidence) Attributes() []attribute.KeyValue {
 	// Validate critical fields - log warnings for missing data but continue processing
 	// This allows the pipeline to continue even with incomplete data
 	if err := validateEvidenceFields(o); err != nil {
-		log.Printf("validation error %v, using default values", err)
+		slog.Warn("validation error, using default values", "err", err)
 	}
 
 	attrs := []attribute.KeyValue{

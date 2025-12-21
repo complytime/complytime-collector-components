@@ -1,7 +1,7 @@
 package basic
 
 import (
-	"log"
+	"log/slog"
 
 	"github.com/ossf/gemara/layer2"
 	"github.com/ossf/gemara/layer4"
@@ -55,18 +55,18 @@ func (m *Mapper) PluginName() mapper.ID {
 	return ID
 }
 
-func (m *Mapper) Map(evidence api.Evidence, scope mapper.Scope) api.Compliance {
-
-	// Map decision to status
-	status := m.mapDecision(evidence.PolicyEvaluationStatus)
-
+// Map returns static compliance metadata for a policy rule
+func (m *Mapper) Map(policy api.Policy, scope mapper.Scope) api.Compliance {
 	var failureReasons []string
 
 	// Process each catalog
 	for catalogId, plans := range m.plans {
 		catalog, ok := scope[catalogId]
 		if !ok {
-			log.Printf("WARNING: Catalog %s not found in scope for policy %s", catalogId, evidence.PolicyRuleId)
+			slog.Warn("Catalog not found in scope for policy",
+				slog.String("catalog_id", catalogId),
+				slog.String("policy_rule_id", policy.PolicyRuleId),
+			)
 			failureReasons = append(failureReasons, "catalog not found")
 			continue
 		}
@@ -78,7 +78,7 @@ func (m *Mapper) Map(evidence api.Evidence, scope mapper.Scope) api.Compliance {
 		controlData := m.buildControlDataMap(catalog)
 
 		// Look up policy in procedures
-		if procedureInfo, ok := proceduresById[evidence.PolicyRuleId]; ok {
+		if procedureInfo, ok := proceduresById[policy.PolicyRuleId]; ok {
 
 			// Look up control data
 			if ctrlData, ok := controlData[procedureInfo.ControlID]; ok {
@@ -93,52 +93,47 @@ func (m *Mapper) Map(evidence api.Evidence, scope mapper.Scope) api.Compliance {
 						Requirements: m.extractRequirements(ctrlData.Mappings),
 						Frameworks:   m.extractStandards(ctrlData.Mappings),
 					},
-					Status:           status,
-					EnrichmentStatus: api.ComplianceEnrichmentStatusSuccess,
+					EnrichmentStatus: api.Success,
 				}
 
 				return compliance
 			} else {
-				log.Printf("WARNING: Control data not found for control ID %s in catalog %s for policy %s", procedureInfo.ControlID, catalogId, evidence.PolicyRuleId)
+				slog.Warn("Control data not found for control ID in catalog for policy",
+					slog.String("control_id", procedureInfo.ControlID),
+					slog.String("catalog_id", catalogId),
+					slog.String("policy_rule_id", policy.PolicyRuleId),
+				)
 				failureReasons = append(failureReasons, "control data not found")
 			}
 		} else {
-			log.Printf("WARNING: Policy rule %s not found in procedures for catalog %s", evidence.PolicyRuleId, catalogId)
+			slog.Warn("Policy rule not found in procedures for catalog",
+				slog.String("policy_rule_id", policy.PolicyRuleId),
+				slog.String("catalog_id", catalogId),
+			)
 			failureReasons = append(failureReasons, "policy rule not found")
 		}
 	}
 
 	// Log final failure if no mapping was found
 	if len(failureReasons) > 0 {
-		log.Printf("WARNING: Failed to map policy %s from engine %s. Reasons: %v", evidence.PolicyRuleId, evidence.PolicyEngineName, failureReasons)
+		slog.Warn("Failed to map policy from engine",
+			slog.String("policy_rule_id", policy.PolicyRuleId),
+			slog.String("policy_engine_name", policy.PolicyEngineName),
+			slog.Any("reasons", failureReasons),
+		)
 	}
 
 	return api.Compliance{
-		Status: api.ComplianceStatusUnknown,
 		Control: api.ComplianceControl{
 			Id:        "UNMAPPED",
 			CatalogId: "UNMAPPED",
 			Category:  "UNCATEGORIZED",
 		},
-		EnrichmentStatus: api.ComplianceEnrichmentStatusUnmapped,
+		EnrichmentStatus: api.Unmapped,
 		Frameworks: api.ComplianceFrameworks{
 			Frameworks:   []string{},
 			Requirements: []string{},
 		},
-	}
-}
-
-// mapDecision maps a decision string to status and status ID.
-func (m *Mapper) mapDecision(status api.EvidencePolicyEvaluationStatus) api.ComplianceStatus {
-	switch status {
-	case api.Passed:
-		return api.ComplianceStatusCompliant
-	case api.Failed:
-		return api.ComplianceStatusNonCompliant
-	case api.NotRun, api.NotApplicable:
-		return api.ComplianceStatusNotApplicable
-	default:
-		return api.ComplianceStatusUnknown
 	}
 }
 

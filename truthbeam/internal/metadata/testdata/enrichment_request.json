@@ -1,13 +1,6 @@
 {
-  "evidence": {
-    "timestamp": "2025-01-05T12:30:00Z",
+  "policy": {
     "policyEngineName": "conforma",
-    "policyRuleId": "github_branch_protection",
-    "policyEvaluationStatus": "Failed",
-    "rawData": {
-      "action": "audit",
-      "categoryId": 6,
-      "classId": 6007
-    }
+    "policyRuleId": "github_branch_protection"
   }
 }

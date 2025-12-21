@@ -3,8 +3,8 @@ package service
 import (
 	"encoding/json"
 	"testing"
-	"time"
 
+	"github.com/complytime/complybeacon/compass/mapper/plugins/basic"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/ossf/gemara/layer2"
 	"github.com/ossf/gemara/layer4"
@@ -13,7 +13,6 @@ import (
 
 	"github.com/complytime/complybeacon/compass/api"
 	"github.com/complytime/complybeacon/compass/mapper"
-	"github.com/complytime/complybeacon/compass/mapper/plugins/basic"
 )
 
 func TestNewService(t *testing.T) {
@@ -75,20 +74,20 @@ func TestEnrich(t *testing.T) {
 			},
 		}
 
-		evidence := api.Evidence{
-			PolicyEngineName:       "test-policy-engine",
-			PolicyRuleId:           "AC-1",
-			PolicyEvaluationStatus: api.Passed,
-			Timestamp:              time.Now(),
+		evidence := api.Policy{
+			PolicyEngineName: "test-policy-engine",
+			PolicyRuleId:     "AC-1",
 		}
 		scope := mapper.Scope{
 			"test-catalog": catalog,
 		}
 
-		response := enrich(evidence, mapperPlugin, scope)
+		compliance := mapperPlugin.Map(evidence, scope)
+		response := api.EnrichmentResponse{
+			Compliance: compliance,
+		}
 
-		assert.Equal(t, api.ComplianceEnrichmentStatusSuccess, response.Compliance.EnrichmentStatus)
-		assert.Equal(t, api.ComplianceStatusCompliant, response.Compliance.Status)
+		assert.Equal(t, api.Success, response.Compliance.EnrichmentStatus)
 		assert.Equal(t, "AC-1-REQ", response.Compliance.Control.Id)
 		assert.Equal(t, "test-catalog", response.Compliance.Control.CatalogId)
 
@@ -102,17 +101,18 @@ func TestEnrich(t *testing.T) {
 
 		// Set up a mapper without plans or with empty scope to trigger unmapped response
 		mapperPlugin := basic.NewBasicMapper()
-		evidence := api.Evidence{
-			PolicyEngineName:       "test-policy-engine",
-			PolicyRuleId:           "AC-1",
-			PolicyEvaluationStatus: api.Failed,
-			Timestamp:              time.Now(),
+		evidence := api.Policy{
+			PolicyEngineName: "test-policy-engine",
+			PolicyRuleId:     "AC-1",
 		}
 		scope := make(mapper.Scope)
-		response := enrich(evidence, mapperPlugin, scope)
 
-		assert.Equal(t, api.ComplianceEnrichmentStatusUnmapped, response.Compliance.EnrichmentStatus)
-		assert.Equal(t, api.ComplianceStatusUnknown, response.Compliance.Status)
+		compliance := mapperPlugin.Map(evidence, scope)
+		response := api.EnrichmentResponse{
+			Compliance: compliance,
+		}
+
+		assert.Equal(t, api.Unmapped, response.Compliance.EnrichmentStatus)
 		assert.Equal(t, "UNMAPPED", response.Compliance.Control.Id)
 		assert.Equal(t, "UNMAPPED", response.Compliance.Control.CatalogId)
 		assert.Equal(t, "UNCATEGORIZED", response.Compliance.Control.Category)
