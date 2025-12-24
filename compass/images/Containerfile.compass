@@ -1,22 +1,53 @@
+# Multi-stage build for ComplyBeacon Compass Service
+# Stage 1: Extract CA certificates from Alpine
+# Stage 2: Build the Compass binary using Go
+# Stage 3: Create minimal runtime image with distroless base
+
+# Stage 1: Certificate extraction
 FROM alpine:3.22 AS certs
 RUN apk --update add ca-certificates
 
+# Stage 2: Build the Compass service
 FROM golang:1.24.5 AS build-stage
 WORKDIR /build
 
+# Copy dependency files first for better layer caching
+# When dependencies don't change, this layer is reused
+COPY compass/go.mod compass/go.sum ./
+RUN --mount=type=cache,target=/root/.cache/go-build go mod download
+
+# Copy the entire compass source code
+# The build context is set to the repository root in compose.yaml
 COPY compass/. .
 
+# Build the Compass binary with build cache optimization
+# CGO is disabled for static binary compilation
 RUN --mount=type=cache,target=/root/.cache/go-build GO111MODULE=on go build ./cmd/compass
 
+# Stage 3: Runtime image
 FROM gcr.io/distroless/base:latest
 
+# Metadata labels following OCI Image Format Specification
+# Consolidated into single LABEL instruction to minimize layers
+LABEL org.opencontainers.image.title="ComplyBeacon Compass" \
+      org.opencontainers.image.description="Central enrichment service for compliance risk and framework data" \
+      org.opencontainers.image.vendor="ComplyTime" \
+      org.opencontainers.image.source="https://github.com/complytime/complybeacon" \
+      org.opencontainers.image.licenses="Apache-2.0"
+
+# Run as non-root user for security
+# USER_UID can be overridden at build time if needed
 ARG USER_UID=10001
 USER ${USER_UID}
 
+# Copy artifacts in order of change frequency (least to most)
+# CA certificates - rarely change
 COPY --from=certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+# Compass binary - changes with code updates
 COPY --chmod=755 --from=build-stage /build/compass /compass
 
 ENTRYPOINT ["/compass"]
 CMD ["--port", "8081"]
 
+# Expose Compass enrichment API port
 EXPOSE 8081

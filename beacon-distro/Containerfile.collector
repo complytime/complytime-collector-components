@@ -1,24 +1,52 @@
+# Multi-stage build for ComplyBeacon OpenTelemetry Collector
+# Stage 1: Extract CA certificates from Alpine
+# Stage 2: Build the collector binary using the builder tool
+# Stage 3: Create minimal runtime image with distroless base
+
+# Stage 1: Certificate extraction
 FROM alpine:3.22 AS certs
 RUN apk --update add ca-certificates
 
+# Stage 2: Build the OpenTelemetry Collector
 FROM golang:1.24.5 AS build-stage
 WORKDIR /build
 
-COPY ./manifest.yaml manifest.yaml
-
+# Build the collector using the OpenTelemetry collector builder
+# The builder version (v0.134.0) should align with dependencies in manifest.yaml
+# Split into two RUN commands for better layer caching
 RUN --mount=type=cache,target=/root/.cache/go-build GO111MODULE=on go install go.opentelemetry.io/collector/cmd/builder@v0.134.0
+
+# Copy the manifest that defines the collector components
+COPY ./manifest.yaml manifest.yaml
 RUN --mount=type=cache,target=/root/.cache/go-build builder --config manifest.yaml
 
+# Stage 3: Runtime image
 FROM gcr.io/distroless/base:latest
 
+# Metadata labels following OCI Image Format Specification
+# Consolidated into single LABEL instruction to minimize layers
+LABEL org.opencontainers.image.title="ComplyBeacon Collector" \
+      org.opencontainers.image.description="OpenTelemetry collector distribution for compliance evidence collection" \
+      org.opencontainers.image.vendor="ComplyTime" \
+      org.opencontainers.image.source="https://github.com/complytime/complybeacon" \
+      org.opencontainers.image.licenses="Apache-2.0"
+
+# Run as non-root user for security
+# USER_UID can be overridden at build time if needed
 ARG USER_UID=10001
 USER ${USER_UID}
 
-COPY config.yaml /etc/otelcol-beacon/config.yaml
+# Copy artifacts and dependencies in order of change frequency (least to most)
+# CA certificates - rarely change
 COPY --from=certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+# Collector binary - changes with code updates
 COPY --chmod=755 --from=build-stage /build/beacon/otelcol-beacon /otelcol-beacon
+# Configuration - most frequently modified
+COPY config.yaml /etc/otelcol-beacon/config.yaml
 
 ENTRYPOINT ["/otelcol-beacon"]
 CMD ["--config", "/etc/otelcol-beacon/config.yaml"]
 
+# Expose standard OpenTelemetry ports and custom endpoints
+# Consolidated into single EXPOSE instruction to minimize layers
 EXPOSE 4317 4318 12001
