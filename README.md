@@ -43,12 +43,12 @@ Before Deploying: Please read the following **NOTE**.
 ⚠️ **NOTE:**
 To enable evidence log synchronization to AWS S3 and Hyperproof, you must configure the following environment variables. The collector will fail to start if the S3 configuration is invalid.
 
-For more detailed information, please refer to the integration guide: [Sync_Evidence2Hyperproof](integration/Sync_Evidence2Hyperproof.md).
+For more detailed information, please refer to the integration guide: [Sync_Evidence2Hyperproof](docs/integration/Sync_Evidence2Hyperproof.md).
 
-| Environment Variable   | Description                                            |   
+| Environment Variable   | Description                                            |
 |------------------------|---------------------------------------------------------|
 | `AWS_REGION`           | The AWS region where your S3 bucket is hosted           |
-| `S3_BUCKETNAME`        | The name of the target S3 bucket.|my-evidence-bucket    |
+| `S3_BUCKETNAME`        | The name of the target S3 bucket.                       |
 | `S3_OBJ_DIR`           | The folder path (prefix) for bucket subjects            |
 | `AWS_ACCESS_KEY_ID`    | The AWS Access Key ID with permissions to the bucket    |
 | `AWS_SECRET_ACCESS_KEY`| The AWS Secret Access Key corresponding to the ID.      |
@@ -64,17 +64,19 @@ to
 
 `exporters: [ debug, otlphttp/logs ]`
 
+The `awss3/logs` configuration in `exporters` section should also be commented.
+
 B. **Comment collector.environment part of [compose.yml](compose.yaml)** as the AWS S3 environment variables will no longer be needed.
 
 Once you've reviewed the **NOTE** above, follow these steps to deploy the infrastructure and test the pipeline.
 
-1.  **Deploy the Stack:**
+1. **Deploy the Stack:**
     This command builds and starts the full infrastructure, including Grafana, Loki, the custom collector (`Beacon`), and the `Compass` service.
     ```bash
     podman-compose up --build
     ```
 
-2.  **Test the Pipeline:**
+2. **Test the Pipeline:**
     Send sample compliance data to the webhook receiver to test the pipeline's functionality.
     ```bash
     curl -X POST http://localhost:8088/eventsource/receiver -H "Content-Type: application/json" -d @hack/sampledata/evidence.json
