@@ -138,7 +138,7 @@ jobs:
 
       # STAGE 2: Critical security check - scan for secrets (WILL FAIL BUILD)
       - name: Scan for secrets (Stage 2 - Secret Detection)
-        uses: aquasecurity/trivy-action@6e7b7d1fd3e4fef0c5fa8cce1229c54b2c9bd0d8 # 0.24.0
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # 0.33.1
         with:
           image-ref: ${{ matrix.image }}:${{ steps.meta.outputs.version }}
           exit-code: 1            # FAIL the workflow if secrets found!
@@ -148,7 +148,7 @@ jobs:
 
       # STAGE 3: Scan for vulnerabilities (for awareness, uploads to Security tab)
       - name: Scan for vulnerabilities (Stage 3 - Vulnerability Scan)
-        uses: aquasecurity/trivy-action@6e7b7d1fd3e4fef0c5fa8cce1229c54b2c9bd0d8 # 0.24.0
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # 0.33.1
         with:
           image-ref: ${{ matrix.image }}:${{ steps.meta.outputs.version }}
           format: sarif
