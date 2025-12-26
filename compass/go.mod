@@ -10,7 +10,7 @@ require (
 	github.com/gin-gonic/gin v1.10.1
 	github.com/goccy/go-yaml v1.18.0
 	github.com/oapi-codegen/gin-middleware v1.0.2
-	github.com/ossf/gemara v0.12.1
+	github.com/ossf/gemara v0.17.0
 	github.com/stretchr/testify v1.11.1
 )
 
