@@ -1,0 +1,87 @@
+---
+# Promote to Quay Workflow
+# Copies signed images from GHCR to Quay.io on release tags
+# Images must be built on main BEFORE creating release tag
+
+name: Promote to Quay
+
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: 'Source commit SHA to promote (defaults to tag commit)'
+        required: false
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: promote-to-quay-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  promote-compass:
+    uses: complytime/org-infra/.github/workflows/reusable_promote.yml@main
+    with:
+      source_registry: ghcr.io
+      source_image: complytime/complybeacon-compass
+      source_tag: sha-${{ inputs.source_sha || github.sha }}
+      dest_registry: quay.io
+      dest_tag: ${{ github.ref_name }}
+      create_semver_tags: true
+      verify_source_signature: true
+      allowed_identity_regex: >-
+        https://github.com/${{ github.repository }}(/.*)?
+    secrets:
+      dest_username: ${{ secrets.QUAY_USERNAME }}
+      dest_password: ${{ secrets.QUAY_PASSWORD }}
+
+  sign-compass:
+    needs: promote-compass
+    permissions:
+      packages: write
+      id-token: write
+    uses: complytime/org-infra/.github/workflows/reusable_sign_and_verify.yml@main
+    with:
+      image_name: quay.io/complytime/complybeacon-compass
+      digest: ${{ needs.promote-compass.outputs.digest }}
+      allowed_identity_regex: >-
+        https://github.com/${{ github.repository }}(/.*)?
+      verify_attestations: false
+    secrets:
+      quay_username: ${{ secrets.QUAY_USERNAME }}
+      quay_password: ${{ secrets.QUAY_PASSWORD }}
+
+  promote-beacon-distro:
+    uses: complytime/org-infra/.github/workflows/reusable_promote.yml@main
+    with:
+      source_registry: ghcr.io
+      source_image: complytime/complybeacon-beacon-distro
+      source_tag: sha-${{ inputs.source_sha || github.sha }}
+      dest_registry: quay.io
+      dest_tag: ${{ github.ref_name }}
+      create_semver_tags: true
+      verify_source_signature: true
+      allowed_identity_regex: >-
+        https://github.com/${{ github.repository }}(/.*)?
+    secrets:
+      dest_username: ${{ secrets.QUAY_USERNAME }}
+      dest_password: ${{ secrets.QUAY_PASSWORD }}
+
+  sign-beacon-distro:
+    needs: promote-beacon-distro
+    permissions:
+      packages: write
+      id-token: write
+    uses: complytime/org-infra/.github/workflows/reusable_sign_and_verify.yml@main
+    with:
+      image_name: quay.io/complytime/complybeacon-beacon-distro
+      digest: ${{ needs.promote-beacon-distro.outputs.digest }}
+      allowed_identity_regex: >-
+        https://github.com/${{ github.repository }}(/.*)?
+      verify_attestations: false
+    secrets:
+      quay_username: ${{ secrets.QUAY_USERNAME }}
+      quay_password: ${{ secrets.QUAY_PASSWORD }}
