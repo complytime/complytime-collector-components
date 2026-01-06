@@ -29,7 +29,7 @@ permissions:
 jobs:
   detect-images:
  
-    if: github.repository == 'complytime/complybeacon'
+    if: github.repository == 'complytime/complytime-collector-components'
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.mk-matrix.outputs.matrix }}
@@ -56,7 +56,7 @@ jobs:
             fi
             
             base="$(echo "$context" | sed 's|^\./||')"
-            image="ghcr.io/complytime/complybeacon-${base}"
+            image="ghcr.io/complytime/complytime-collector-components-${base}"
             # Containerfile path must be relative to repo root for docker/build-push-action
             full_containerfile_path="${context}/${containerfile}"
             entries+=( "{\"name\":\"${base}\",\"context\":\"${context}\",\"dockerfile\":\"${full_containerfile_path}\",\"image\":\"${image}\"}" )
@@ -75,7 +75,7 @@ jobs:
   build-and-push:
     needs: detect-images
     # Only run in the upstream repo (not forks) to prevent accidental publishing
-    if: ${{ fromJSON(needs.detect-images.outputs.matrix).include[0] != null && github.repository == 'complytime/complybeacon' }}
+    if: ${{ fromJSON(needs.detect-images.outputs.matrix).include[0] != null && github.repository == 'complytime/complytime-collector-components' }}
     runs-on: ubuntu-latest
     strategy:
       matrix: ${{ fromJSON(needs.detect-images.outputs.matrix) }}
@@ -102,7 +102,7 @@ jobs:
             latest=auto
           labels: |
             org.opencontainers.image.title=${{ matrix.name }}
-            org.opencontainers.image.description=ComplyBeacon ${{ matrix.name }} service
+            org.opencontainers.image.description=ComplyTime Collector Components ${{ matrix.name }} service
             org.opencontainers.image.vendor=ComplyTime
 
       - name: Log in to GHCR
