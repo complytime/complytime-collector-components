@@ -5,7 +5,7 @@ go 1.24.10
 tool github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen
 
 require (
-	github.com/maypok86/otter v1.2.4
+	github.com/maypok86/otter/v2 v2.3.0
 	github.com/ossf/gemara v0.12.1
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/collector/component v1.37.0
@@ -21,12 +21,10 @@ require (
 
 require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
-	github.com/dolthub/maphash v0.1.0 // indirect
 	github.com/dprotaso/go-yit v0.0.0-20220510233725-9ba8df137936 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/foxboron/go-tpm-keyfiles v0.0.0-20250323135004-b31fac66206e // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
-	github.com/gammazero/deque v0.2.1 // indirect
 	github.com/getkin/kin-openapi v0.132.0 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
