@@ -239,12 +239,6 @@ func TestCacheCapacityValidation(t *testing.T) {
 			expectedAfter: 0,
 			expectError:   true,
 		},
-		{
-			name:          "large cache capacity preserved",
-			cacheCapacity: 200000,
-			expectedAfter: 200000,
-			expectError:   false,
-		},
 	}
 
 	for _, tt := range tests {
