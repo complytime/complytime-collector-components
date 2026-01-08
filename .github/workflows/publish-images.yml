@@ -3,9 +3,9 @@ name: publish-images
 
 on:
   push:
-    branches: 
+    branches:
       - main
-    tags: [ 'v*.*.*' ]
+    tags: ['v*.*.*']
     paths:
       - '**/Containerfile*'
       - '.github/workflows/**'
@@ -28,7 +28,6 @@ permissions:
 
 jobs:
   detect-images:
- 
     if: github.repository == 'complytime/complybeacon'
     runs-on: ubuntu-latest
     outputs:
@@ -40,12 +39,13 @@ jobs:
         run: |
           set -euo pipefail
           entries=()
-          
+
           # Auto-discover all Containerfiles
           while IFS= read -r fullpath; do
-            dir="$(dirname "$fullpath" | sed 's|^\./||')"
+            dir="$(dirname "$fullpath")"
+            dir="${dir#./}"
             file="$(basename "$fullpath")"
-            
+
             # Determine context (parent directory if in subdirectory like images/)
             if [[ "$dir" == */images ]]; then
               context="./${dir%/images}"
@@ -54,20 +54,20 @@ jobs:
               context="./${dir}"
               containerfile="${file}"
             fi
-            
-            base="$(echo "$context" | sed 's|^\./||')"
+
+            base="${context#./}"
             image="ghcr.io/complytime/complybeacon-${base}"
             # Containerfile path must be relative to repo root for docker/build-push-action
             full_containerfile_path="${context}/${containerfile}"
             entries+=( "{\"name\":\"${base}\",\"context\":\"${context}\",\"dockerfile\":\"${full_containerfile_path}\",\"image\":\"${image}\"}" )
           done < <(find . -maxdepth 3 -type f -name 'Containerfile*' -not -path "./.github/*" -print | sort -u)
-          
+
           if [[ "${#entries[@]}" -eq 0 ]]; then
             echo "No Containerfiles found. Producing empty matrix."
             echo "matrix={\"include\":[]}" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          
+
           json="$(printf '{ "include": [ %s ] }' "$(IFS=,; echo "${entries[*]}")")"
           echo "matrix=${json}" >> "$GITHUB_OUTPUT"
           echo "Discovered matrix: ${json}"
@@ -113,15 +113,15 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
-        
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
 
       # STAGE 1: Build locally first (don't push yet!)
       - name: Build and load to Docker (Stage 1 - Local Build)
         id: build-local
-        uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75 # v6.9.0
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
@@ -138,7 +138,7 @@ jobs:
 
       # STAGE 2: Critical security check - scan for secrets (WILL FAIL BUILD)
       - name: Scan for secrets (Stage 2 - Secret Detection)
-        uses: aquasecurity/trivy-action@6e7b7d1fd3e4fef0c5fa8cce1229c54b2c9bd0d8 # 0.24.0
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # 0.33.1
         with:
           image-ref: ${{ matrix.image }}:${{ steps.meta.outputs.version }}
           exit-code: 1            # FAIL the workflow if secrets found!
@@ -148,7 +148,7 @@ jobs:
 
       # STAGE 3: Scan for vulnerabilities (for awareness, uploads to Security tab)
       - name: Scan for vulnerabilities (Stage 3 - Vulnerability Scan)
-        uses: aquasecurity/trivy-action@6e7b7d1fd3e4fef0c5fa8cce1229c54b2c9bd0d8 # 0.24.0
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # 0.33.1
         with:
           image-ref: ${{ matrix.image }}:${{ steps.meta.outputs.version }}
           format: sarif
@@ -169,7 +169,7 @@ jobs:
       # STAGE 4: Multi-arch build and push (uses cache, super fast!)
       - name: Build and push multi-arch (Stage 4 - Final Push)
         id: build
-        uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75 # v6.9.0
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
@@ -185,11 +185,11 @@ jobs:
 
       - name: Export digest
         id: digest
-        run: echo "digest=${{ steps.build.outputs.digest }}" >> $GITHUB_OUTPUT
+        run: echo "digest=${{ steps.build.outputs.digest }}" >> "$GITHUB_OUTPUT"
 
       # STAGE 5: Attestations for supply chain security
       - name: Attest build provenance (Stage 5 - Attestations)
-        uses: actions/attest-build-provenance@ef244123eb79f2f7a7e75d99086184180e6d0018 #  v1.4.4
+        uses: actions/attest-build-provenance@00014ed6ed5efc5b1ab7f7f34a39eb55d41aa4f8 #  v3.1.0
         with:
           subject-name: ${{ matrix.image }}
           subject-digest: ${{ steps.digest.outputs.digest }}
@@ -198,7 +198,7 @@ jobs:
       # STAGE 6: Sign image with Cosign
       - name: Install Cosign
         uses: sigstore/cosign-installer@053f9b74638557590800a301da1ba82351507e2c # v3.8.1
-        
+
       - name: Sign image (Stage 6 - Signing)
         env:
           COSIGN_EXPERIMENTAL: "true"
@@ -222,18 +222,18 @@ jobs:
       # Summary
       - name: Published image summary
         run: |
-          cat >> $GITHUB_STEP_SUMMARY <<EOF
+          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
           ## Successfully Published Image
-          
+
           **Service:** ${{ matrix.name }}
           **Image:** ${{ matrix.image }}
           **Digest:** ${{ steps.digest.outputs.digest }}
-          
+
           ### Tags
           \`\`\`
           $(echo "${{ steps.meta.outputs.tags }}" | tr ',' '\n')
           \`\`\`
-          
+
           ### Security Checks Passed
           - Secret scanning
           - Vulnerability scanning
