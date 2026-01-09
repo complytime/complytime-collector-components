@@ -33,7 +33,7 @@ services:
           basicAuth: false
           isDefault: true
           version: 1
-          editable: true 
+          editable: true
         EOF
         /run.sh
 
@@ -48,7 +48,7 @@ services:
       # Development/Testing purpose
       - ./hack/self-signed-cert/compass.crt:/certs/compass.crt:Z
       - ./hack/self-signed-cert/compass.key:/certs/compass.key:Z
-    command: [ "--config", "/config.yaml", "--catalog", "/sampledata/osps.yaml",  "--port", "8081"]
+    command: ["--config", "/config.yaml", "--catalog", "/sampledata/osps.yaml", "--port", "8081"]
     ports:
       - "8081:8081"
 

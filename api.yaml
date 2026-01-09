@@ -5,9 +5,9 @@ info:
   version: 0.1.0
   description: |
     A centralized compliance metadata server that provides policy-to-compliance mappings,
-    control frameworks, and risk assessments for policy-as-code workflows. This service serves as 
-    the authoritative source for compliance metadata, enabling OpenTelemetry collectors and other 
-    systems to enrich policy evaluation events with standardized compliance context, 
+    control frameworks, and risk assessments for policy-as-code workflows. This service serves as
+    the authoritative source for compliance metadata, enabling OpenTelemetry collectors and other
+    systems to enrich policy evaluation events with standardized compliance context,
     regulatory mappings, and risk classifications.
 
 paths:
