@@ -92,45 +92,61 @@ Create new **`SecureString`** parameters in the AWS Systems Manager (SSM) Parame
 
 #### **C. [Lambda Function](https://docs.aws.amazon.com/lambda/?icmpid=docs_homepage_featuredsvcs)**
 
-1.  **Create Function:** Initialise a new AWS Lambda function (e.g., using Python runtime).
-2.  **Configure Triggers:** Add an S3 trigger linking it to the bucket from step **3.2 A**, configured to fire on `ObjectCreated` events.
+1.  **Create Function:** Initialise a new AWS Lambda function (using Python runtime).
+2.  **Configure Triggers:** Add an S3 trigger linking it to the bucket from step **3.2 A**, configured to fire ***only*** on `s3:ObjectCreated:Put` and `s3:ObjectCreated:Post` events(Very important).
 3.  **Configure IAM Execution Role:**
     * Attach the managed policy `AmazonS3ReadOnlyAccess` (to allow Lambda to read the evidence logs).
-    * Create and attach an inline policy granting `ssm:GetParameter` permission to read the specific SSM parameters (`/hyperproof/CLIENT_ID`, `/hyperproof/CLIENT_SECRET`).
+    * Create and attach an inline policy granting `ssm:GetParameter` and `kms:Decrypt` permission to read the specific SSM parameters (`/hyperproof/CLIENT_ID`, `/hyperproof/CLIENT_SECRET`).
+    * Create and attach an inline policy granting `s3:DeleteObject` and `s3:PutObject` permission because we need to rename S3 object filename. 
 
     _Example Policy snippet_
-    ```
+    ```json
+    {
+      "Version": "2012-10-17",
+      "Statement": [
         {
-            "Version": "2012-10-17",
-            "Statement": [
-                {
-                    "Sid": "AllowReadingSSMParameters",
-                    "Effect": "Allow",
-                    "Action": [
-                        "ssm:GetParameter"
-                    ],
-                    "Resource": [
-                        "arn:aws:ssm:*:*:parameter/hyperproof/CLIENT_ID", # Need to update
-                        "arn:aws:ssm:*:*:parameter/hyperproof/CLIENT_SECRET" # Need to update
-                    ]
-                },
-                {
-                    "Sid": "AllowDecryptingSecrets",
-                    "Effect": "Allow",
-                    "Action": [
-                        "kms:Decrypt"
-                    ],
-                    "Resource": "arn:aws:kms:*:*:alias/aws/ssm"
-                }
-            ]
+          "Sid": "VisualEditor0",
+          "Effect": "Allow",
+          "Action": [
+            "s3:PutObject",
+            "s3:GetObject",
+            "s3:DeleteObject"
+          ],
+          "Resource": "arn:aws:s3:::alex-hyperproof-test/*"  
         }
+      ]
+    }
     ```
-4.  **Dependencies & Layers:** Create and attach a Lambda Layer containing the necessary Python libraries (e.g., `requests`, `boto3`) for making API requests and interacting with AWS services.
+
+    ```json
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+          {
+            "Sid": "VisualEditor0",
+            "Effect": "Allow",
+            "Action": "kms:Decrypt",
+            "Resource": "*"
+          },
+          {
+            "Sid": "VisualEditor1",
+            "Effect": "Allow",
+            "Action": "ssm:GetParameter",
+            "Resource": [
+                "arn:aws:ssm:eu-north-1:725106756198:parameter/hyperproof/CLIENT_ID",
+                "arn:aws:ssm:eu-north-1:725106756198:parameter/hyperproof/CLIENT_SECRET"
+            ]
+          }
+      ]
+    }
+    ```
+
+4.  **Dependencies & Layers:** Create and attach a Lambda Layer containing the necessary Python libraries (`requests`).
 5.  **Set Environment Variables:** Configure the following (for the Python script to use):
-    * `SSM_CLIENT_ID_PATH`: `/hyperproof/CLIENT_ID`
-    * `SSM_SECRET_PATH`: `/hyperproof/CLIENT_SECRET`
-    * `CONTROL_ID` (Optional): The Hyperproof Control ID to which the evidence should be mapped by default.
-6.  **Deploy Code:** Deploy the actual sync code (which reads S3, retrieves secrets from SSM, and calls the Hyperproof API) into the Lambda Function editor.
+    * `CLIENT_ID`: `/hyperproof/CLIENT_ID`
+    * `CLIENT_SECRET`: `/hyperproof/CLIENT_SECRET`
+6.  **Deploy Code:** Deploy the actual [sync code](https://gitlab.cee.redhat.com/product-security/continuous-compliance/SyncEvidence2Hyperproof/-/blob/main/lambda_function.py?ref_type=heads) (which reads S3, retrieves secrets from SSM, and calls the Hyperproof API) into the Lambda Function editor.
+7.  **Setup timeout** Go to Configuration->General configuration, increase timeout value to a bigger value, for example 10s(default is 3). 
 
 ---
 
