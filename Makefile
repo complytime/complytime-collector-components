@@ -202,6 +202,23 @@ weaver-semantic-check-verbose: ## Validate with verbose output
 	@cat /tmp/test-enriched-logs.json | \
 		weaver registry live-check -r model --input-source stdin --input-format json
 .PHONY: weaver-semantic-check-verbose
+
+#------------------------------------------------------------------------------
+# Linting
+#------------------------------------------------------------------------------
+
+golangci-lint: ## Runs golangci-lint for all modules
+	@for m in $(MODULES); do \
+		echo "Running golangci-lint for $$m..."; \
+		(cd $$m && golangci-lint run --config ../.golangci.yml ./...); \
+		if [ $$? -ne 0 ]; then \
+			echo "Linting failed for module: $$m"; \
+			exit 1; \
+		fi; \
+	done
+	@echo "--- All linting passed! ---"
+.PHONY: golangci-lint
+
 # ------------------------------------------------------------------------------
 # Help Target
 # Prints a friendly help message.
