@@ -13,3 +13,6 @@ ENABLE_LINTERS:
   #- REPOSITORY_KICS
   - YAML_YAMLLINT
 REPOSITORY_KICS_ARGUMENTS: "--fail-on high"
+
+# Override default ./... pattern with explicit module paths to avoid root directory error
+GO_GOLANGCI_LINT_ARGUMENTS: ./compass/... ./truthbeam/... ./proofwatch/...
