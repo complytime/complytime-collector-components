@@ -64,9 +64,6 @@ services:
       dockerfile: Containerfile.collector
     restart: unless-stopped
     command: ["--config=/etc/otel-collector.yaml"]
-    dns:
-      - 1.1.1.1
-      - 8.8.8.8
     volumes:
       - ./hack/demo/demo-config.yaml:/etc/otel-collector.yaml:Z
       - ./data:/data:Z

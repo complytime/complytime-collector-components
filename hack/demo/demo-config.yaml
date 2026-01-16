@@ -65,6 +65,7 @@ exporters:
       region: ${AWS_REGION}
       s3_bucket: ${S3_BUCKETNAME}
       s3_prefix: ${S3_OBJ_DIR}
+      s3_partition_format: ""
 
 service:
   pipelines:
@@ -73,10 +74,10 @@ service:
       processors: [batch]
       exporters: [debug]
     metrics:
-      receivers: [ otlp ]
-      processors: [ batch ]
-      exporters: [ debug ]
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [debug]
     logs/analysis_pipeline:
-      receivers: [ webhookevent, otlp ]
-      processors: [ batch, transform/ocsf, truthbeam ]
-      exporters: [ debug, otlphttp/logs, awss3/logs ]
+      receivers: [webhookevent, otlp]
+      processors: [batch, transform/ocsf, truthbeam]
+      exporters: [debug, otlphttp/logs, awss3/logs]
