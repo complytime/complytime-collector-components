@@ -52,10 +52,11 @@ service:
       processors: [batch]
       exporters: [debug]
     metrics:
-      receivers: [ otlp ]
-      processors: [ batch ]
-      exporters: [ debug ]
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [debug]
+    # Logs pipeline - enriched logs are exported to both storage and metrics connector
     logs:
-      receivers: [ otlp ]
-      processors: [ batch, transform/ocsf, truthbeam ]
-      exporters: [ debug ]
+      receivers: [otlp]
+      processors: [batch, transform/ocsf, truthbeam]
+      exporters: [debug]

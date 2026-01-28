@@ -58,13 +58,55 @@ If you do not wish to use the AWS S3 integration, you can disable it by modifyin
 
 A. **In [hack/demo/demo-config.yaml](hack/demo/demo-config.yaml)** change the exporters line from:
 
-`exporters: [ debug, otlphttp/logs, awss3/logs ]`
+`exporters: [debug, otlphttp/logs, awss3/logs, signaltometrics]`
 
 to
 
-`exporters: [ debug, otlphttp/logs ]`
+`exporters: [debug, otlphttp/logs, signaltometrics]`
 
 The `awss3/logs` configuration in `exporters` section should also be commented.
+
+```yaml
+exporters:
+  debug:
+    verbosity: detailed
+  otlphttp/logs:
+    endpoint: "http://loki:3100/otlp"
+    tls:
+      insecure: true
+  # File exporter: writes metrics as JSON for filelog receiver
+  file/metrics:
+    path: /data/metrics.jsonl
+    format: json
+  awss3/logs:
+    s3uploader:
+      region: ${AWS_REGION}
+      s3_bucket: ${S3_BUCKETNAME}
+      s3_prefix: ${S3_OBJ_DIR}
+      s3_partition_format: ""
+```
+
+to 
+
+```yaml
+exporters:
+  debug:
+    verbosity: detailed
+  otlphttp/logs:
+    endpoint: "http://loki:3100/otlp"
+    tls:
+      insecure: true
+  # File exporter: writes metrics as JSON for filelog receiver
+  file/metrics:
+    path: /data/metrics.jsonl
+    format: json
+#  awss3/logs:
+#    s3uploader:
+#      region: ${AWS_REGION}
+#      s3_bucket: ${S3_BUCKETNAME}
+#      s3_prefix: ${S3_OBJ_DIR}
+#      s3_partition_format: ""
+```
 
 B. **Comment collector.environment part of [compose.yml](compose.yaml)** as the AWS S3 environment variables will no longer be needed.
 
@@ -81,6 +123,9 @@ Once you've reviewed the **NOTE** above, follow these steps to deploy the infras
     ```bash
     curl -X POST http://localhost:8088/eventsource/receiver -H "Content-Type: application/json" -d @hack/sampledata/evidence.json
     ```
+   
+3. **Enable grafana dashboard:**
+    If you want to enable pre-build grafana dashboard, refer to [README.md](./hack/demo/terraform/README.md)
 
 ## Project Design
 

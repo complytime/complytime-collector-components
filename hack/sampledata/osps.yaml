@@ -47,27 +47,27 @@ control-families:
         guideline-mappings:
           - reference-id: BPB
             "entries":
-            - "reference-id": B-G-3
+              - "reference-id": B-G-3
           - reference-id: Scorecard
             entries:
-            - "reference-id": Code-Review
+              - "reference-id": Code-Review
           - reference-id: PSSCRM
             entries:
-            - "reference-id": G2.4
-            - "reference-id": P3.3
-            - "reference-id": P3.5
+              - "reference-id": G2.4
+              - "reference-id": P3.3
+              - "reference-id": P3.5
           - reference-id: PCIDSS
             entries:
-            - "reference-id": 6.2.3.1
-            - "reference-id": 6.4.2
-            - "reference-id": 6.5.4
+              - "reference-id": 6.2.3.1
+              - "reference-id": 6.4.2
+              - "reference-id": 6.5.4
           - reference-id: 800-161
             entries:
-            - "reference-id": AC-5
-            - "reference-id": AU-6
-            - "reference-id": PL-8
-            - "reference-id": SA-15
-            - "reference-id": SR-3
+              - "reference-id": AC-5
+              - "reference-id": AU-6
+              - "reference-id": PL-8
+              - "reference-id": SA-15
+              - "reference-id": SR-3
         assessment-requirements:
           - id: OSPS-QA-07.01
             text: |
@@ -87,3 +87,94 @@ control-families:
               - id: main_branch_min_approvals
                 description: Minimum approvals on the default branch
                 default: 1
+          - id: OSPS-QA-07.02
+            text: |
+              Code reviews MUST be performed by at least one non-author reviewer
+              before merging changes to the primary branch.
+            applicability:
+              - Maturity Level 3
+            recommendation: |
+              Require code reviews for all changes to the primary branch.
+          - id: OSPS-QA-07.03
+            text: |
+              All commits to the primary branch MUST be cryptographically signed.
+            applicability:
+              - Maturity Level 3
+            recommendation: |
+              Configure the version control system to require signed commits.
+  - title: Dependencies
+    description: |
+      Dependencies focuses on managing external dependencies and ensuring
+      they are kept up to date and secure.
+    controls:
+      - id: OSPS-QA-05
+        title: |
+          The project MUST scan dependencies for known vulnerabilities.
+        objective: |
+          Ensure that dependencies are regularly scanned for known security
+          vulnerabilities.
+        assessment-requirements:
+          - id: OSPS-QA-05.01
+            text: |
+              Dependencies MUST be scanned for known vulnerabilities on a regular basis.
+            applicability:
+              - Maturity Level 2
+            recommendation: |
+              Set up automated dependency scanning with daily or weekly frequency.
+          - id: OSPS-QA-05.02
+            text: |
+              Dependencies MUST be updated regularly to address known vulnerabilities.
+            applicability:
+              - Maturity Level 2
+            recommendation: |
+              Establish a process for regular dependency updates.
+  - title: Secrets
+    description: |
+      Secrets management focuses on preventing accidental exposure of
+      sensitive information in the codebase.
+    controls:
+      - id: OSPS-QA-06
+        title: |
+          The project MUST detect and prevent secrets from being committed to
+          the version control system.
+        objective: |
+          Prevent accidental exposure of secrets, API keys, and other sensitive
+          information in the codebase.
+        assessment-requirements:
+          - id: OSPS-QA-06.02
+            text: |
+              Secret detection MUST be enabled and configured to scan all commits.
+            applicability:
+              - Maturity Level 2
+            recommendation: |
+              Enable secret scanning tools to detect and prevent secrets in commits.
+  - title: Documentation
+    description: |
+      Documentation focuses on security-related documentation requirements.
+    controls:
+      - id: OSPS-QA-08
+        title: |
+          The project MUST have a vulnerability disclosure policy.
+        objective: |
+          Provide clear guidance on how security vulnerabilities should be reported.
+        assessment-requirements:
+          - id: OSPS-QA-08.01
+            text: |
+              A vulnerability disclosure policy MUST be documented and publicly accessible.
+            applicability:
+              - Maturity Level 2
+            recommendation: |
+              Create and publish a vulnerability disclosure policy.
+      - id: OSPS-QA-09
+        title: |
+          The project MUST have a security policy.
+        objective: |
+          Document security practices and expectations for the project.
+        assessment-requirements:
+          - id: OSPS-QA-09.01
+            text: |
+              A security policy MUST be documented and publicly accessible.
+            applicability:
+              - Maturity Level 2
+            recommendation: |
+              Create and publish a security policy document.
