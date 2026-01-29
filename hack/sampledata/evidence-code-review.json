@@ -1,0 +1,49 @@
+{
+  "activity_id": 0,
+  "activity_name": "",
+  "category_name": "Application Activity",
+  "category_uid": 6,
+  "class_name": "Scan Activity",
+  "class_uid": 6007,
+  "cloud": {
+    "provider": ""
+  },
+  "event_day": 0,
+  "metadata": {
+    "log_provider": "conforma",
+    "product": {
+      "name": "conforma",
+      "vendor_name": "conforma",
+      "version": "v0.8.6"
+    },
+    "uid": "c2p-conforma-C2PPolicy",
+    "version": "v0.8.6"
+  },
+  "num_files": 1,
+  "observables": [
+    {
+      "name": "evidence-code-review.json",
+      "type": "File Name",
+      "type_id": 7
+    }
+  ],
+  "osint": null,
+  "scan": {
+    "type_id": 0
+  },
+  "severity": "unknown",
+  "severity_id": 0,
+  "status": "success",
+  "status_id": 1,
+  "time": 1757088091576,
+  "type_name": "",
+  "type_uid": 60070,
+  "policy": {
+    "data": "{\"name\":\"C2P Policy\",\"description\":\"Policy Created by C2P\",\"sources\":[{\"name\":\"OSPS-QA-07.02\",\"policy\":[\"github.com/conforma/policy//policy/lib\",\"oci::ghcr.io/jpower432/opa-bundle:dev\"],\"ruleData\":{\"code_review_required\":\"true\",\"min_reviewers\":\"2\"},\"config\":{\"include\":[\"code_review\"]}}]}",
+    "desc": "Policy Created by C2P",
+    "name": "C2P Policy",
+    "uid": "code_review"
+  },
+  "action": "observed",
+  "action_id": 3
+}

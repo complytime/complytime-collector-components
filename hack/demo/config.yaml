@@ -4,4 +4,4 @@ plugins:
 
 certConfig:
   cert: /certs/compass.crt
-  key:  /certs/compass.key
+  key: /certs/compass.key

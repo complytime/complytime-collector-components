@@ -37,6 +37,23 @@ limits_config:
           attributes:
             - compliance.control
             - compliance.benchmark
+            # Index log attributes for efficient querying
+            # These attributes are added by truthbeam processor
+            - compliance.control.id
+            - compliance.control.catalog.id
+            - compliance.control.category
+            - compliance.status
+            - policy.rule.id
+            - policy.engine.name
+            - policy.evaluation.result
+            # Also index with underscores (Loki may convert dots to underscores)
+            - compliance_control_id
+            - compliance_control_catalog_id
+            - compliance_control_category
+            - compliance_status
+            - policy_rule_id
+            - policy_engine_name
+            - policy_evaluation_result
 
 schema_config:
   configs:

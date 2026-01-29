@@ -1,15 +1,23 @@
 metadata:
   id: testplan
 plans:
-- control:
-   reference-id: OSPS-B
-   entry-id: OSPS-QA-07
-  assessments:
-    - requirement:
-        reference-id: OSPS-B
-        entry-id: OSPS-QA-07.01
-      procedures:
-        - id: "github_branch_protection"
-          name: "github_branch_protection"
-          description: "Checking branch protections in GitHub"
-          documentation: https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/managing-a-branch-protection-rule
+  - control:
+      reference-id: OSPS-B
+      entry-id: OSPS-QA-07
+    assessments:
+      - requirement:
+          reference-id: OSPS-B
+          entry-id: OSPS-QA-07.01
+        procedures:
+          - id: "github_branch_protection"
+            name: "github_branch_protection"
+            description: "Checking branch protections in GitHub"
+            documentation: https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/managing-a-branch-protection-rule
+      - requirement:
+          reference-id: OSPS-B
+          entry-id: OSPS-QA-07.02
+        procedures:
+          - id: "code_review"
+            name: "code_review"
+            description: "Checking code review requirements"
+            documentation: https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/reviewing-changes-in-pull-requests/about-pull-request-reviews
