@@ -17,7 +17,7 @@ on:
       - main
     paths:
       - '**/Containerfile*'
-      - '.github/workflows/**'
+      - '.github/workflows/ci_publish_ghcr.yml'
   schedule:
     - cron: '0 0 */30 * *'  # Monthly rebuilds for base image security updates
   workflow_dispatch:  # Allow manual triggering
@@ -134,7 +134,6 @@ jobs:
   scan-image-beacon-distro:
     name: Scan Beacon Distro Image
     needs: [build-beacon-distro]
-    if: ${{ always() && needs.build-beacon-distro.result == 'success' }}
     permissions:
       contents: read          # reusable may checkout for config
       packages: write         # pull image from GHCR
