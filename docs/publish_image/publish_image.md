@@ -14,7 +14,7 @@ Release Tag (v*)  →  Verify + Promote     →  Quay.io
 
 ---
 
-## Main Branch Pipeline (Build → Scan → Sign)
+## Main Branch Pipeline (Scan Source → Build → Scan Image → Sign)
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
@@ -104,20 +104,17 @@ Release Tag (v*)  →  Verify + Promote     →  Quay.io
   ╔═══════════════════════════════════════════════════════════════════════════╗
   ║  STAGE 4: PROMOTE TO PRODUCTION REGISTRY                                  ║
   ║  ┌─────────────────────────────────────────────────────────────────────┐  ║
-  ║  │            reusable_promote.yml                                     │  ║
+  ║  │            reusable_publish_quay.yml                                │  ║
   ║  │  ┌───────────────────────────────────────────────────────────────┐  │  ║
   ║  │  │  1. Lookup source: ghcr.io/org/image:sha-<commit> → digest    │  │  ║
   ║  │  │                                                               │  │  ║
   ║  │  │  2. Pre-promotion verification:                               │  │  ║
   ║  │  │     ✓ Verify source signature                                 │  │  ║
-  ║  │  │     ✓ Verify SLSA provenance                                  │  │  ║
-  ║  │  │     ✓ Verify SBOM                                             │  │  ║
-  ║  │  │     ✓ Verify vuln attestation                                 │  │  ║
   ║  │  │                                                               │  │  ║
   ║  │  │  3. cosign copy (preserves all signatures + attestations)     │  │  ║
   ║  │  │     ghcr.io/org/image@sha256:... → quay.io/org/image:v1.2.3   │  │  ║
   ║  │  │                                                               │  │  ║
-  ║  │  │  4. Apply semver tags: v1.2.3 → 1.2, 1                        │  │  ║
+  ║  │  │  4. Apply semver tags: v1.2.3, sha-<full>, and sha-<short>    │  │  ║
   ║  │  │                                                               │  │  ║
   ║  │  │  5. Post-promotion verification (destination registry)        │  │  ║
   ║  │  └───────────────────────────────────────────────────────────────┘  │  ║
@@ -130,8 +127,6 @@ Release Tag (v*)  →  Verify + Promote     →  Quay.io
                       ┌───────────────────────────────┐
                       │  ✅ Production Image Ready    │
                       │  quay.io/org/image:v1.2.3    │
-                      │  quay.io/org/image:1.2       │
-                      │  quay.io/org/image:1         │
                       │  (all with preserved certs)  │
                       └───────────────────────────────┘
 ```
@@ -175,6 +170,11 @@ Releases are created as needed. Maintainers coordinate releases via issues or di
 ## Setting Up The Repository
 
 ### 1. Create Caller Workflows
+
+- Create a workflow for publishing to GHCR as [`ci_publish_ghcr.yml`](../.github/workflows/ci_publish_ghcr.yml) 
+- Create a workflow for publishing to Quay as [`ci_publish_quay.yml`](../.github/workflows/ci_publish_quay.yml)
+- Get the commit SHA from the successful run of ci_publish_ghcr.yml 
+- Then tag the built commit and push trigger the Quay
 
 ### 2. Configure Secrets
 

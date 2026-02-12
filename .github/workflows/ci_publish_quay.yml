@@ -1,0 +1,116 @@
+# Promote to Quay Workflow
+# =======================
+# Tag push: promotes ghcr.io/org/image:sha-<commit> → quay.io/org/
+
+name: Promote to Quay
+
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag to create (e.g., v1.2.3)'
+        type: string
+        required: true
+      source_sha:
+        description: 'Commit SHA of the image to promote (7+ chars)'
+        type: string
+        required: true
+      force:
+        description: 'Overwrite existing tag (breaks immutability)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: none
+
+concurrency:
+  group: release-quay-${{ inputs.version || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  setup:
+    name: Validate Release
+    runs-on: ubuntu-latest
+    outputs:
+      source_tag: ${{ steps.vars.outputs.source_tag }}
+      dest_tag: ${{ steps.vars.outputs.dest_tag }}
+    steps:
+      - name: Compute tags
+        id: vars
+        env:
+          VERSION: ${{ inputs.version || github.ref_name }}
+          FULL_SHA: ${{ inputs.source_sha || github.sha }}
+        run: |
+          # Validate SHA format (7-40 hex characters)
+          if [[ ! "$FULL_SHA" =~ ^[a-f0-9]{7,40}$ ]]; then
+            echo "::error::Invalid SHA format: $FULL_SHA (expected: 7-40 hex chars)"
+            exit 1
+          fi
+          echo "source_tag=sha-${FULL_SHA}" >> "$GITHUB_OUTPUT"
+
+          # Validate version format
+          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+.*$ ]]; then
+            echo "::error::Invalid version format: $VERSION (expected: v1.2.3)"
+            exit 1
+          fi
+          echo "dest_tag=${VERSION}" >> "$GITHUB_OUTPUT"
+
+  tag-ghcr:
+    name: Tag GHCR Images
+    needs: setup
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - uses: imjasonh/setup-crane@31b88efe9de28ae0ffa220711af4b60be9435f6e # v0.4
+      - name: Tag GHCR images
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_TAG: ${{ needs.setup.outputs.source_tag }}
+          DEST_TAG: ${{ needs.setup.outputs.dest_tag }}
+          GH_ACTOR: ${{ github.actor }}
+        run: |
+          echo "$TOKEN" | crane auth login ghcr.io -u "$GH_ACTOR" --password-stdin
+          for img in complybeacon-compass complybeacon-beacon-distro; do
+            crane tag "ghcr.io/complytime/${img}:${SOURCE_TAG}" "$DEST_TAG"
+          done
+
+  promote-compass:
+    name: Promote Compass
+    needs: [setup, tag-ghcr]
+    permissions:
+      packages: read
+    uses: complytime/org-infra/.github/workflows/reusable_publish_quay.yml@main
+    with:
+      source_registry: ghcr.io
+      source_image: complytime/complybeacon-compass
+      source_tag: ${{ needs.setup.outputs.source_tag }}
+      dest_registry: quay.io
+      dest_image: continuouscompliance/complytime-compass
+      dest_tag: ${{ needs.setup.outputs.dest_tag }}
+      allowed_identity_regex: https://github.com/complytime/org-infra(/.*)?
+      fail_if_dest_exists: ${{ inputs.force != true }}
+    secrets:
+      dest_username: ${{ secrets.QUAY_USERNAME }}
+      dest_password: ${{ secrets.QUAY_PASSWORD }}
+
+  promote-beacon-distro:
+    name: Promote Beacon Distro
+    needs: [setup, tag-ghcr]
+    permissions:
+      packages: read
+    uses: complytime/org-infra/.github/workflows/reusable_publish_quay.yml@main
+    with:
+      source_registry: ghcr.io
+      source_image: complytime/complybeacon-beacon-distro
+      source_tag: ${{ needs.setup.outputs.source_tag }}
+      dest_registry: quay.io
+      dest_image: continuouscompliance/complytime-beacon-distro
+      dest_tag: ${{ needs.setup.outputs.dest_tag }}
+      allowed_identity_regex: https://github.com/complytime/org-infra(/.*)?
+      fail_if_dest_exists: ${{ inputs.force != true }}
+    secrets:
+      dest_username: ${{ secrets.QUAY_USERNAME }}
+      dest_password: ${{ secrets.QUAY_PASSWORD }}
