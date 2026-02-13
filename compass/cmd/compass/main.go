@@ -72,7 +72,7 @@ func main() {
 
 	service := compass.NewService(transformers, scope)
 
-	s := server.NewGinServer(service, port)
+	s := server.NewGinServer(service, port, &cfg)
 
 	if skipTLS {
 		slog.Warn("Insecure connections permitted. TLS is highly recommended for production")

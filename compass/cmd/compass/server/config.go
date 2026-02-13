@@ -42,6 +42,13 @@ func NewScopeFromCatalogPath(catalogPath string) (mapper.Scope, error) {
 type Config struct {
 	Plugins     []PluginConfig `json:"plugins"`
 	Certificate CertConfig     `json:"certConfig"`
+	JWTAuth     JWTAuthConfig  `json:"jwtAuth"`
+}
+
+type JWTAuthConfig struct {
+	Enabled          bool     `json:"enabled"`
+	ExpectedAudience string   `json:"expectedAudience"`
+	AllowedSubjects  []string `json:"allowedSubjects"`
 }
 
 type CertConfig struct {
