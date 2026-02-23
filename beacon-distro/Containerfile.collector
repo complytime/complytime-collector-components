@@ -8,7 +8,7 @@ FROM alpine:3.22 AS certs
 RUN apk --update add ca-certificates
 
 # Stage 2: Build the OpenTelemetry Collector
-FROM golang:1.24.10 AS build-stage
+FROM golang:1.24.13 AS build-stage
 WORKDIR /build
 
 # Build the collector using the OpenTelemetry collector builder
