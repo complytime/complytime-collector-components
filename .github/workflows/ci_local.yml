@@ -17,6 +17,7 @@ permissions:
 env:
   GO_VERSION: 1.24
   GOLANGCI_LINT_VERSION: v2.1
+  WEAVER_VERSION: v0.21.2
 
 jobs:
   detect-modules:
@@ -74,17 +75,14 @@ jobs:
 
       - name: Install weaver
         run: |
-          WEAVER_VERSION="$(curl -s https://api.github.com/repos/open-telemetry/weaver/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')"
-          curl -L -o /tmp/weaver.tar.xz "https://github.com/open-telemetry/weaver/releases/download/${WEAVER_VERSION}/weaver-x86_64-unknown-linux-gnu.tar.xz"
+          echo "Installing weaver ${{ env.WEAVER_VERSION }}"
+          curl -fL -o /tmp/weaver.tar.xz "https://github.com/open-telemetry/weaver/releases/download/${{ env.WEAVER_VERSION }}/weaver-x86_64-unknown-linux-gnu.tar.xz"
           mkdir -p "${HOME}/bin"
           tar -xJf /tmp/weaver.tar.xz
           mv weaver-x86_64-unknown-linux-gnu/weaver "${HOME}/bin/weaver"
           chmod +x "${HOME}/bin/weaver"
           echo "${HOME}/bin" >> "${GITHUB_PATH}"
           rm -rf "weaver-x86_64-unknown-linux-gnu/"
-
-      - name: Install jq
-        run: sudo apt-get update && sudo apt-get install -y jq
 
       - name: Setup Go workspace
         run: make workspace
@@ -105,8 +103,8 @@ jobs:
 
       - name: Install weaver
         run: |
-          WEAVER_VERSION="$(curl -s https://api.github.com/repos/open-telemetry/weaver/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')"
-          curl -L -o /tmp/weaver.tar.xz "https://github.com/open-telemetry/weaver/releases/download/${WEAVER_VERSION}/weaver-x86_64-unknown-linux-gnu.tar.xz"
+          echo "Installing weaver ${{ env.WEAVER_VERSION }}"
+          curl -fL -o /tmp/weaver.tar.xz "https://github.com/open-telemetry/weaver/releases/download/${{ env.WEAVER_VERSION }}/weaver-x86_64-unknown-linux-gnu.tar.xz"
           mkdir -p "${HOME}/bin"
           tar -xJf /tmp/weaver.tar.xz
           mv weaver-x86_64-unknown-linux-gnu/weaver "${HOME}/bin/weaver"
