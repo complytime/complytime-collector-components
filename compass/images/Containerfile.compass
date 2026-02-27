@@ -8,7 +8,7 @@ FROM alpine:3.22 AS certs
 RUN apk --no-cache add ca-certificates
 
 # Stage 2: Build the Compass service
-FROM golang:1.24.5 AS build-stage
+FROM golang:1.24.13 AS build-stage
 WORKDIR /build
 
 # Copy dependency files first for better layer caching
