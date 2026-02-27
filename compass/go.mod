@@ -1,8 +1,6 @@
 module github.com/complytime/complybeacon/compass
 
-go 1.24.0
-
-toolchain go1.24.5
+go 1.24.13
 
 require (
 	github.com/getkin/kin-openapi v0.133.0
