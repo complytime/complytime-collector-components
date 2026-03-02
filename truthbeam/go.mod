@@ -1,6 +1,6 @@
 module github.com/complytime/complybeacon/truthbeam
 
-go 1.24.12
+go 1.24.13
 
 tool github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen
 
