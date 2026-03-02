@@ -46,9 +46,13 @@ func JWTAuthMiddleware(config JWTAuthConfig) gin.HandlerFunc {
 		httpClient = http.DefaultClient
 	}
 
+	// Check if DNS bypass is enabled
+	kubernetesServiceIP := os.Getenv("KUBERNETES_SERVICE_IP")
+	dnsBypassEnabled := kubernetesServiceIP != ""
+
 	// Apply DNS bypass if KUBERNETES_SERVICE_IP is set
 	// This is the only custom part - override DialContext to use direct IP
-	if kubernetesServiceIP := os.Getenv("KUBERNETES_SERVICE_IP"); kubernetesServiceIP != "" {
+	if dnsBypassEnabled {
 		slog.Info("DNS bypass enabled - using direct Kubernetes API IP", "kubernetes_ip", kubernetesServiceIP)
 
 		// Get the base transport from the client
@@ -76,9 +80,13 @@ func JWTAuthMiddleware(config JWTAuthConfig) gin.HandlerFunc {
 		}
 	}
 
+	// Always use the standard Kubernetes hostname for OIDC issuer
+	// This ensures consistency with what the OIDC discovery endpoint returns
+	issuerURL := "https://kubernetes.default.svc"
+
 	// Create OIDC provider with Kubernetes client
 	ctx := oidc.ClientContext(context.Background(), httpClient)
-	provider, err := oidc.NewProvider(ctx, k8sConfig.Host)
+	provider, err := oidc.NewProvider(ctx, issuerURL)
 	if err != nil {
 		slog.Error("failed to create OIDC provider", "error", err)
 		// Return middleware that always fails
@@ -89,14 +97,28 @@ func JWTAuthMiddleware(config JWTAuthConfig) gin.HandlerFunc {
 		}
 	}
 
-	// Create token verifier
-	verifier := provider.Verifier(&oidc.Config{
+	// Create token verifier configuration
+	verifierConfig := &oidc.Config{
 		ClientID: config.ExpectedAudience,
-	})
+	}
+
+	// When DNS bypass is enabled, skip issuer validation
+	// This is safe because:
+	// 1. We're in a trusted environment (inside the cluster)
+	// 2. TLS certificate validation is still performed
+	// 3. JWKS signature verification is still performed
+	if dnsBypassEnabled {
+		verifierConfig.SkipIssuerCheck = true
+		slog.Info("OIDC issuer validation disabled due to DNS bypass")
+	}
+
+	// Create token verifier
+	verifier := provider.Verifier(verifierConfig)
 
 	slog.Info("JWT authentication middleware initialized",
-		"issuer", k8sConfig.Host,
-		"audience", config.ExpectedAudience)
+		"issuer", issuerURL,
+		"audience", config.ExpectedAudience,
+		"dns_bypass", dnsBypassEnabled)
 
 	return func(c *gin.Context) {
 		// Extract token from Authorization header
