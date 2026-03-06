@@ -8,7 +8,6 @@ require (
 	github.com/gin-gonic/gin v1.11.0
 	github.com/goccy/go-yaml v1.19.2
 	github.com/oapi-codegen/gin-middleware v1.0.2
-	github.com/ossf/gemara v0.12.1
 	github.com/stretchr/testify v1.11.1
 )
 
@@ -17,7 +16,6 @@ require (
 	github.com/bytedance/sonic/loader v0.3.0 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
-	github.com/defenseunicorns/go-oscal v0.7.0 // indirect
 	github.com/dprotaso/go-yit v0.0.0-20220510233725-9ba8df137936 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.9 // indirect
@@ -48,7 +46,6 @@ require (
 	github.com/quic-go/qpack v0.6.0 // indirect
 	github.com/quic-go/quic-go v0.57.0 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
-	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 // indirect
 	github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3 // indirect
 	github.com/speakeasy-api/jsonpath v0.6.0 // indirect
 	github.com/speakeasy-api/openapi-overlay v0.10.2 // indirect
