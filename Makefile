@@ -230,7 +230,7 @@ crapload-baseline: ensure-gaze test ## Generate baseline thresholds in .gaze/bas
 		echo "Generating baseline for $$m..."; \
 		mkdir -p $$m/.gaze; \
 		MODULE_ROOT=$$(cd $$m && pwd); \
-		(cd $$m && gaze crap --format=json --coverprofile=$(GAZE_COVERPROFILE) ./... | \
+		(cd $$m && gaze crap --format=json --coverprofile=$(GAZE_COVERPROFILE) ./... 2>/dev/null | \
 			jq --arg root "$$MODULE_ROOT/" '(.scores[],.summary.worst_crap[]?,.summary.worst_gaze_crap[]?) |= (.file |= ltrimstr($$root))' > .gaze/baseline.json); \
 		echo "Baseline written to $$m/.gaze/baseline.json"; \
 	done
@@ -248,31 +248,31 @@ crapload-check: ensure-gaze test ## Check for CRAP regressions against baseline 
 			exit 1; \
 		fi; \
 		MODULE_ROOT=$$(cd $$m && pwd); \
-		(cd $$m && gaze crap --format=json --coverprofile=$(GAZE_COVERPROFILE) ./... | \
+		(cd $$m && gaze crap --format=json --coverprofile=$(GAZE_COVERPROFILE) ./... 2>/dev/null | \
 			jq --arg root "$$MODULE_ROOT/" '(.scores[],.summary.worst_crap[]?,.summary.worst_gaze_crap[]?) |= (.file |= ltrimstr($$root))' > /tmp/crapload-current.json); \
 		echo "Comparing against baseline..."; \
-		jq -r '.scores[] | "\(.file):\(.function) \(.crap) \(.gaze_crap // 0)"' $$BASELINE | sort > /tmp/crapload-baseline.txt; \
-		jq -r '.scores[] | "\(.file):\(.function) \(.crap) \(.gaze_crap // 0)"' /tmp/crapload-current.json | sort > /tmp/crapload-current.txt; \
+		jq -r '.scores[] | "\(.file):\(.function)\t\(.crap)\t\(.gaze_crap // 0)"' $$BASELINE | sort > /tmp/crapload-baseline.tsv; \
 		REGRESSIONS=0; \
-		while IFS=' ' read -r func crap gaze_crap; do \
-			baseline_crap=$$(grep -F "$$func " /tmp/crapload-baseline.txt | head -1 | awk '{print $$2}'); \
-			baseline_gaze=$$(grep -F "$$func " /tmp/crapload-baseline.txt | head -1 | awk '{print $$3}'); \
-			if [ -z "$$baseline_crap" ]; then \
+		while IFS=$$'\t' read -r func crap gaze_crap; do \
+			baseline_line=$$(grep -F "$$func	" /tmp/crapload-baseline.tsv | head -1 || true); \
+			if [ -z "$$baseline_line" ]; then \
 				if [ "$$(echo "$$crap > $(GAZE_NEW_FUNC_THRESHOLD)" | bc -l)" = "1" ]; then \
 					echo "NEW FUNCTION VIOLATION: $$func CRAP=$$crap (threshold=$(GAZE_NEW_FUNC_THRESHOLD))"; \
 					REGRESSIONS=$$((REGRESSIONS + 1)); \
 				fi; \
 			else \
-				if [ "$$(echo "$$crap > $$baseline_crap" | bc -l)" = "1" ]; then \
-					echo "REGRESSION: $$func CRAP $$baseline_crap -> $$crap"; \
+				b_crap=$$(echo "$$baseline_line" | cut -f2); \
+				b_gaze=$$(echo "$$baseline_line" | cut -f3); \
+				if [ "$$(echo "$$crap > $$b_crap" | bc -l)" = "1" ]; then \
+					echo "REGRESSION: $$func CRAP $$b_crap -> $$crap"; \
 					REGRESSIONS=$$((REGRESSIONS + 1)); \
 				fi; \
-				if [ "$$(echo "$$gaze_crap > $$baseline_gaze" | bc -l)" = "1" ]; then \
-					echo "REGRESSION: $$func GazeCRAP $$baseline_gaze -> $$gaze_crap"; \
+				if [ "$$(echo "$$gaze_crap > $$b_gaze" | bc -l)" = "1" ]; then \
+					echo "REGRESSION: $$func GazeCRAP $$b_gaze -> $$gaze_crap"; \
 					REGRESSIONS=$$((REGRESSIONS + 1)); \
 				fi; \
 			fi; \
-		done < /tmp/crapload-current.txt; \
+		done < <(jq -r '.scores[] | "\(.file):\(.function)\t\(.crap)\t\(.gaze_crap // 0)"' /tmp/crapload-current.json | sort); \
 		TOTAL_REGRESSIONS=$$((TOTAL_REGRESSIONS + REGRESSIONS)); \
 		if [ $$REGRESSIONS -gt 0 ]; then \
 			echo "$$m: $$REGRESSIONS regression(s) detected"; \
