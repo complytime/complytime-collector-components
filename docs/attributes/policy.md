@@ -5,7 +5,7 @@
 
 ## Policy Engine Attributes
 
-Attributes emitted by policy engines (OPA, Gatekeeper, etc.) during policy evaluation and enforcement. Maps to GEMARA Layer 4 (Evaluation) for Policy-as-Code workflows.
+Attributes emitted by policy engines (OPA, Gatekeeper, etc.) during policy evaluation and enforcement. Maps to GEMARA Layer 5 (Evaluation) for Policy-as-Code workflows.
 
 | Attribute | Type | Description | Examples | Stability |
 |---|---|---|---|---|

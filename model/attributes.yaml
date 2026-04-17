@@ -4,7 +4,7 @@ groups:
     display_name: Policy Engine Attributes
     brief: >
       Attributes emitted by policy engines (OPA, Gatekeeper, etc.) during policy evaluation and enforcement.
-      Maps to GEMARA Layer 4 (Evaluation) for Policy-as-Code workflows.
+      Maps to GEMARA Layer 5 (Evaluation) for Policy-as-Code workflows.
     attributes:
       - id: policy.engine.name
         type: string
@@ -115,7 +115,7 @@ groups:
     brief: >
       Attributes added by compliance assessment tools to map policy results to compliance frameworks.
       Provides compliance context, risk assessment, and regulatory mapping for audit and reporting.
-      Maps to GEMARA Layer 5 (Enforcement) for Policy-as-Code workflows.
+      Maps to GEMARA Layer 6 (Enforcement) for Policy-as-Code workflows.
     attributes:
       - id: compliance.control.id
         type: string

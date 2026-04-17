@@ -1,10 +1,10 @@
 module github.com/complytime/complybeacon/proofwatch
 
-go 1.24.13
+go 1.25.0
 
 require (
 	github.com/Santiago-Labs/go-ocsf v0.1.1-0.20250729170529-8b19b43949a6
-	github.com/ossf/gemara v0.12.1
+	github.com/gemaraproj/go-gemara v0.3.0
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/collector/pdata v1.51.0
 	go.opentelemetry.io/otel v1.40.0
@@ -22,6 +22,7 @@ require (
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
+	github.com/goccy/go-yaml v1.19.2 // indirect
 	github.com/google/flatbuffers v25.2.10+incompatible // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/hashicorp/go-version v1.8.0 // indirect

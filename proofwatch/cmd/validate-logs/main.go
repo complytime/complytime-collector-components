@@ -8,7 +8,7 @@ import (
 	"time"
 
 	ocsf "github.com/Santiago-Labs/go-ocsf/ocsf/v1_5_0"
-	"github.com/ossf/gemara/layer4"
+	gemara "github.com/gemaraproj/go-gemara"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/otel/attribute"
@@ -19,23 +19,23 @@ import (
 // generateGemaraLog creates a sample Gemara log record with compliance attributes
 func generateGemaraLog() plog.Logs {
 	evidence := proofwatch.GemaraEvidence{
-		Metadata: layer4.Metadata{
+		Metadata: gemara.Metadata{
 			Id: "test-assessment-001",
-			Author: layer4.Author{
+			Author: gemara.Actor{
 				Name: "test-policy-engine",
 			},
 		},
-		AssessmentLog: layer4.AssessmentLog{
-			Requirement: layer4.Mapping{
+		AssessmentLog: gemara.AssessmentLog{
+			Requirement: gemara.EntryMapping{
 				EntryId:     "OSPS-QA-07.01",
 				ReferenceId: "OSPS-B",
 			},
-			Procedure: layer4.Mapping{
+			Plan: &gemara.EntryMapping{
 				EntryId: "deny-root-user",
 			},
-			Result:  layer4.Passed,
+			Result:  gemara.Passed,
 			Message: "Policy evaluation completed successfully",
-			End:     layer4.Datetime(time.Now().Format(time.RFC3339)),
+			End:     gemara.Datetime(time.Now().Format(time.RFC3339)),
 		},
 	}
 

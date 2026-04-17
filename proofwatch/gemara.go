@@ -4,18 +4,16 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/ossf/gemara/layer4"
+	gemara "github.com/gemaraproj/go-gemara"
 	"go.opentelemetry.io/otel/attribute"
 )
 
 var _ Evidence = (*GemaraEvidence)(nil)
 
 // GemaraEvidence represents evidence data from the Gemara compliance assessment framework.
-// It embeds both layer4.Metadata and layer4.AssessmentLog to provide comprehensive
-// compliance assessment information that can be used for evidence collection and reporting.
 type GemaraEvidence struct {
-	layer4.Metadata
-	layer4.AssessmentLog
+	gemara.Metadata
+	gemara.AssessmentLog
 }
 
 func (g GemaraEvidence) ToJSON() ([]byte, error) {
@@ -28,8 +26,11 @@ func (g GemaraEvidence) Attributes() []attribute.KeyValue {
 		attribute.String(COMPLIANCE_CONTROL_ID, g.Requirement.EntryId),
 		attribute.String(COMPLIANCE_CONTROL_CATALOG_ID, g.Requirement.ReferenceId),
 		attribute.String(POLICY_EVALUATION_RESULT, g.Result.String()),
-		attribute.String(POLICY_RULE_ID, g.Procedure.EntryId),
 		attribute.String(COMPLIANCE_ASSESSMENT_ID, g.Id),
+	}
+
+	if g.Plan != nil {
+		attrs = append(attrs, attribute.String(POLICY_RULE_ID, g.Plan.EntryId))
 	}
 
 	if g.Message != "" {

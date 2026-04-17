@@ -5,7 +5,7 @@
 
 ## Compliance Assessment Attributes
 
-Attributes added by compliance assessment tools to map policy results to compliance frameworks. Provides compliance context, risk assessment, and regulatory mapping for audit and reporting. Maps to GEMARA Layer 5 (Enforcement) for Policy-as-Code workflows.
+Attributes added by compliance assessment tools to map policy results to compliance frameworks. Provides compliance context, risk assessment, and regulatory mapping for audit and reporting. Maps to GEMARA Layer 6 (Enforcement) for Policy-as-Code workflows.
 
 | Attribute | Type | Description | Examples | Stability |
 |---|---|---|---|---|

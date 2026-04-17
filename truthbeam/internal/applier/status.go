@@ -1,6 +1,6 @@
 package applier
 
-import "github.com/ossf/gemara/layer4"
+import gemara "github.com/gemaraproj/go-gemara"
 
 // Status defines the compliance status value
 type Status int
@@ -30,29 +30,29 @@ func (s Status) String() string {
 	return toString[s]
 }
 
-func parseResult(resultStr string) layer4.Result {
+func parseResult(resultStr string) gemara.Result {
 	switch resultStr {
 	case "Not Run":
-		return layer4.NotRun
+		return gemara.NotRun
 	case "Not Applicable":
-		return layer4.NotApplicable
+		return gemara.NotApplicable
 	case "Passed":
-		return layer4.Passed
+		return gemara.Passed
 	case "Failed":
-		return layer4.Failed
+		return gemara.Failed
 	default:
-		return layer4.Unknown
+		return gemara.Unknown
 	}
 }
 
 func mapResult(resultStr string) Status {
 	result := parseResult(resultStr)
 	switch result {
-	case layer4.Passed:
+	case gemara.Passed:
 		return Compliant
-	case layer4.Failed:
+	case gemara.Failed:
 		return NotCompliant
-	case layer4.NotApplicable, layer4.NotRun:
+	case gemara.NotApplicable, gemara.NotRun:
 		return NotApplicable
 	default:
 		return Unknown

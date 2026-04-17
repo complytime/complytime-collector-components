@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ossf/gemara/layer4"
+	gemara "github.com/gemaraproj/go-gemara"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/attribute"
@@ -70,8 +70,8 @@ func TestGemaraEvidenceTimestamp(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			evidence := GemaraEvidence{
-				AssessmentLog: layer4.AssessmentLog{
-					End: layer4.Datetime(tt.endTime),
+				AssessmentLog: gemara.AssessmentLog{
+					End: gemara.Datetime(tt.endTime),
 				},
 			}
 
@@ -90,20 +90,20 @@ func TestGemaraEvidenceTimestamp(t *testing.T) {
 func TestGemaraEvidenceAttributesEmptyFields(t *testing.T) {
 	// Empty optional fields
 	evidence := GemaraEvidence{
-		Metadata: layer4.Metadata{
-			Author: layer4.Author{
+		Metadata: gemara.Metadata{
+			Author: gemara.Actor{
 				Name: "test-author",
 			},
 		},
-		AssessmentLog: layer4.AssessmentLog{
-			Requirement: layer4.Mapping{
+		AssessmentLog: gemara.AssessmentLog{
+			Requirement: gemara.EntryMapping{
 				EntryId:     "test-control-id",
 				ReferenceId: "test-catalog-id",
 			},
-			Procedure: layer4.Mapping{
+			Plan: &gemara.EntryMapping{
 				EntryId: "test-procedure-id",
 			},
-			Result: layer4.Passed,
+			Result: gemara.Passed,
 			// Message and Recommendation are empty
 		},
 	}
@@ -124,22 +124,22 @@ func TestGemaraEvidenceAttributesEmptyFields(t *testing.T) {
 func TestGemaraEvidenceAttributesDifferentResults(t *testing.T) {
 	tests := []struct {
 		name     string
-		result   layer4.Result
+		result   gemara.Result
 		expected string
 	}{
 		{
 			name:     "passed result",
-			result:   layer4.Passed,
+			result:   gemara.Passed,
 			expected: "Passed",
 		},
 		{
 			name:     "failed result",
-			result:   layer4.Failed,
+			result:   gemara.Failed,
 			expected: "Failed",
 		},
 		{
 			name:     "not applicable result",
-			result:   layer4.NotApplicable,
+			result:   gemara.NotApplicable,
 			expected: "Not Applicable",
 		},
 	}
@@ -147,17 +147,17 @@ func TestGemaraEvidenceAttributesDifferentResults(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			evidence := GemaraEvidence{
-				Metadata: layer4.Metadata{
-					Author: layer4.Author{
+				Metadata: gemara.Metadata{
+					Author: gemara.Actor{
 						Name: "test-author",
 					},
 				},
-				AssessmentLog: layer4.AssessmentLog{
-					Requirement: layer4.Mapping{
+				AssessmentLog: gemara.AssessmentLog{
+					Requirement: gemara.EntryMapping{
 						EntryId:     "test-control-id",
 						ReferenceId: "test-catalog-id",
 					},
-					Procedure: layer4.Mapping{
+					Plan: &gemara.EntryMapping{
 						EntryId: "test-procedure-id",
 					},
 					Result: tt.result,
@@ -176,30 +176,29 @@ func TestGemaraEvidenceAttributesDifferentResults(t *testing.T) {
 // This remains the canonical helper for Gemara evidence tests.
 func createTestGemaraEvidence() GemaraEvidence {
 	return GemaraEvidence{
-		Metadata: layer4.Metadata{
+		Metadata: gemara.Metadata{
 			Id:      "test-audit-id",
 			Version: "1.0.0",
-			Author: layer4.Author{
+			Author: gemara.Actor{
 				Name:    "test-author",
 				Uri:     "https://example.com",
 				Version: "1.0.0",
 			},
 		},
-		AssessmentLog: layer4.AssessmentLog{
-			Requirement: layer4.Mapping{
+		AssessmentLog: gemara.AssessmentLog{
+			Requirement: gemara.EntryMapping{
 				EntryId:     "test-control-id",
 				ReferenceId: "test-catalog-id",
-				Strength:    8,
 				Remarks:     "Test control mapping",
 			},
-			Procedure: layer4.Mapping{
+			Plan: &gemara.EntryMapping{
 				EntryId:     "test-procedure-id",
 				ReferenceId: "test-procedure-ref",
 				Remarks:     "Test procedure",
 			},
 			Description:    "Test assessment description",
 			Message:        "Test assessment message",
-			Result:         layer4.Passed,
+			Result:         gemara.Passed,
 			Applicability:  []string{"test-scope-1", "test-scope-2"},
 			StepsExecuted:  5,
 			Recommendation: "Test recommendation",
