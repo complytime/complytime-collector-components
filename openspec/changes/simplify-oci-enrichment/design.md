@@ -13,45 +13,34 @@ Proofwatch emits flat `GemaraEvidence` records (an `AssessmentLog` + `Metadata`)
 
 Compass is a stateless HTTP wrapper around a Gemara catalog YAML file. The four fields it adds (`category`, `frameworks`, `requirements`, `risk.level`) are static catalog reference data. `compliance.status` is a pure function of `Result`.
 
-Meanwhile, complyctl already produces full `gemara.EvaluationLog` objects with the complete hierarchy:
+### Evidence model: GemaraEvidence is the right abstraction
 
-```
-EvaluationLog
-  ├── Metadata (Author/Actor, Id)
-  ├── Target (Resource: Name, Id, Type, Environment)
-  └── Evaluations[]
-        ├── Control (EntryMapping: EntryId, ReferenceId)
-        └── AssessmentLogs[]
-              ├── Requirement (EntryMapping)
-              ├── Plan (*EntryMapping, optional)
-              ├── Result, Message, Recommendation
-              └── Applicability, ConfidenceLevel, Start/End
-```
+complyctl plugins operate at the **AssessmentLog + Metadata** level. They do not have access to the full `EvaluationLog` hierarchy (`Target`, `ControlEvaluation` parent context). An `EvaluationLog` fan-out at the proofwatch layer was considered and rejected for three reasons:
 
-This hierarchy carries every field needed for complete OTel semantic convention mapping. The `Target` and `Control` context on the outer objects propagate naturally to each `AssessmentLog`. There is no data that requires a runtime catalog lookup -- everything is available at the point of evidence emission.
+1. **Plugin scope**: Plugins produce individual assessment records, not full evaluation hierarchies. The `GemaraEvidence` type (flat: `Metadata` + `AssessmentLog`) matches what producers actually have.
+2. **Target reliability**: complyctl merges multiple targets into a single `EvaluationLog` with a zero-value `Target` field. The hierarchy is not reliable for per-target attribution today.
+3. **Simplicity**: Adding `compliance.status` to `GemaraEvidence.Attributes()` is a one-line change. A fan-out adds a new type, new tests, and a new API surface for no gain given the current producer constraints.
+
+If complyctl evolves to produce per-target `EvaluationLog` objects with populated `Target` fields, a fan-out API can be added later as an additional capability.
 
 ### Data mapping analysis
 
-**Fields available from Gemara EvaluationLog hierarchy (no external lookup):**
+**Fields available from GemaraEvidence (no external lookup):**
 
 | Source | Gemara Field | OTel Attribute |
 |:--|:--|:--|
-| EvaluationLog | `Target.Name` | `policy.target.name` |
-| EvaluationLog | `Target.Id` | `policy.target.id` |
-| EvaluationLog | `Target.Type` | `policy.target.type` |
-| EvaluationLog | `Target.Environment` | `policy.target.environment` |
-| EvaluationLog | `Metadata.Author.Name` | `policy.engine.name` |
-| EvaluationLog | `Metadata.Author.Version` | `policy.engine.version` |
-| EvaluationLog | `Metadata.Author.Uri` | `policy.rule.uri` |
-| EvaluationLog | `Metadata.Id` | `compliance.assessment.id` |
-| ControlEvaluation | `Control.EntryId` | `compliance.control.id` |
-| ControlEvaluation | `Control.ReferenceId` | `compliance.control.catalog.id` |
+| Metadata | `Author.Name` | `policy.engine.name` |
+| Metadata | `Author.Version` | `policy.engine.version` |
+| Metadata | `Author.Uri` | `policy.rule.uri` |
+| Metadata | `Id` | `compliance.assessment.id` |
+| AssessmentLog | `Requirement.EntryId` | `compliance.control.id` |
+| AssessmentLog | `Requirement.ReferenceId` | `compliance.control.catalog.id` |
 | AssessmentLog | `Result` | `policy.evaluation.result` |
 | AssessmentLog | `Plan.EntryId` | `policy.rule.id` (opt_in, nil-guarded) |
 | AssessmentLog | `Message` | `policy.evaluation.message` |
 | AssessmentLog | `Recommendation` | `compliance.remediation.description` |
 | AssessmentLog | `Applicability` | `compliance.control.applicability` |
-| *(derived)* | `mapResult(Result)` | `compliance.status` |
+| *(derived)* | `MapResult(Result)` | `compliance.status` |
 
 **Fields that required Compass (catalog-only, no longer populated):**
 
@@ -63,17 +52,20 @@ This hierarchy carries every field needed for complete OTel semantic convention 
 | `Risk.Level` | `compliance.risk.level` | Deferred to query-time enrichment |
 | `EnrichmentStatus` | `compliance.enrichment.status` | Removed |
 
-Every attribute that matters for auditor workflows (control ID, catalog ID, target name, pass/fail status) is available from the Gemara hierarchy. The catalog-derived cross-references are reference data suitable for query-time joins.
+Every attribute that matters for auditor workflows (control ID, catalog ID, pass/fail status) is available from `GemaraEvidence`. The catalog-derived cross-references are reference data suitable for query-time joins.
 
 ## Goals / Non-Goals
 
 **Goals:**
-- Proofwatch accepts `gemara.EvaluationLog` and fans out to one OTel log record per `AssessmentLog` with full semantic convention attributes
+- Proofwatch emits `compliance.status` on every `GemaraEvidence` log record via local `MapResult()` derivation
 - Remove truthbeam processor, OCSF support, Compass service, and cert infrastructure
+- Rename all internal references from `complybeacon`/`beacon` to `complytime-collector-components`/`complytime`
 - Collector retains custom OCB distro (non-standard components) but drops all custom processor code
+- Add ClickHouse exporter to distro manifest
 - Maintain fail-open behavior (malformed records pass through with warning)
 
 **Non-Goals:**
+- `EvaluationLog` fan-out in proofwatch (producers don't have that context today)
 - Adding new Gemara fields or modifying the `go-gemara` SDK
 - Query-time catalog enrichment tooling (future work)
 - Changing complyctl's `EvaluationLog` generation (upstream dependency, tracked separately)
@@ -81,44 +73,50 @@ Every attribute that matters for auditor workflows (control ID, catalog ID, targ
 
 ## Decisions
 
-### 1. Proofwatch owns the Gemara-to-OTel mapping
+### 1. Proofwatch adds compliance.status to GemaraEvidence
 
-Move all semantic convention attribute mapping to proofwatch. The `EvaluationLog` fan-out works as follows:
+Add `MapResult()` to proofwatch (ported from `truthbeam/internal/applier/status.go`) and call it in `GemaraEvidence.Attributes()`. This is a single new attribute on an existing type -- no new types, no new API surface.
 
-For each `ControlEvaluation` in `EvaluationLog.Evaluations`:
-  For each `AssessmentLog` in `ControlEvaluation.AssessmentLogs`:
-    Emit one OTel log record with:
-    - `Target` attributes from `EvaluationLog.Target`
-    - `Control` attributes from `ControlEvaluation.Control`
-    - Assessment attributes from the `AssessmentLog` itself
-    - `compliance.status` derived from `AssessmentLog.Result`
+The `MapResult()` function maps:
+- `Passed` → `Compliant`
+- `Failed` → `Non-Compliant`
+- `NotApplicable`, `NotRun` → `Not Applicable`
+- default → `Unknown`
 
-This replaces the current `GemaraEvidence` type (flat struct) with a richer input that preserves the full hierarchy context.
+Lives in `proofwatch/status.go` as an exported function with an exported `ComplianceStatus` type.
 
 **Alternatives considered:**
-- *Keep truthbeam as mapper, proofwatch does fan-out only*: proofwatch would emit records with Gemara fields as raw attributes, truthbeam would rename them to semantic conventions. Rejected -- adds a pass-through processor for pure field renaming that proofwatch can do at the source.
-- *Fan out in a collector processor instead of proofwatch*: Would require truthbeam to parse structured Gemara JSON from log bodies. Rejected -- moves complexity into the pipeline that belongs at the evidence producer.
+- *EvaluationLog fan-out*: Rejected. complyctl plugins only produce AssessmentLog + Metadata. The full hierarchy is not available to evidence producers. If this changes upstream, a fan-out can be added as an additional capability without breaking the flat API.
+- *Keep truthbeam for status derivation only*: Rejected. A custom collector processor for one `switch` statement is not justified.
 
 ### 2. Delete truthbeam entirely
 
-With proofwatch emitting fully-mapped records, truthbeam has zero remaining function. A pass-through processor adds build complexity (custom collector distro), config surface, and a test surface for no value.
+With proofwatch emitting `compliance.status` directly, truthbeam has zero remaining function. The collector remains a custom OCB-built distro (non-standard receivers, exporters, and extensions are still needed), but the manifest drops the truthbeam module.
 
-The collector remains a custom OCB-built distro (non-standard receivers, exporters, and extensions are still needed), but `beacon-distro/manifest.yaml` drops the truthbeam module. No custom Go processor code runs in the pipeline.
+### 3. Retain GemaraEvidence as the primary evidence type
 
-**Alternatives considered:**
-- *Keep truthbeam as optional enrichment processor for future Path B*: Would require maintaining the module, tests, and custom distro build even when unused. Rejected -- if Path B is needed later, it can be re-added. Dead code has carrying cost.
+The existing `GemaraEvidence` struct (explicit `Metadata` field + embedded `AssessmentLog`) is the right level of abstraction. It now emits `compliance.status` in addition to its existing attributes. The `validate-logs` CLI uses it directly for semantic convention validation.
 
-### 3. Port `mapResult()` to proofwatch
+### 4. Remove OCSF, Compass, and cert infrastructure
 
-The `Result` → `compliance.status` mapping logic (`Passed` → `Compliant`, `Failed` → `Non-Compliant`, etc.) currently lives in `truthbeam/internal/applier/status.go`. Port this function to proofwatch where it will be used during the fan-out.
+No migration path needed. No consumers. Clean delete.
 
-### 4. Retain `GemaraEvidence` for backward compatibility
+**Implementation detail**: `proofwatch/proofwatch_test.go` shares a `createTestEvidence()` helper defined in `ocsf_test.go`. This must be replaced with `createTestGemaraEvidence()` (from `gemara_test.go`) before deleting OCSF test files.
 
-Keep the existing `GemaraEvidence` type and its `Attributes()` method for callers that produce individual assessment records (not full EvaluationLogs). The new `EvaluationLog` fan-out is an additional capability, not a replacement. `cmd/validate-logs` uses `GemaraEvidence` directly for semantic convention validation.
+### 5. Rename from complybeacon to complytime-collector-components
 
-### 5. Remove OCSF, Compass, and cert infrastructure
+The GitHub repo was renamed. All internal references update:
 
-No migration path. No consumers. Clean delete.
+| Old | New |
+|:--|:--|
+| `github.com/complytime/complybeacon/proofwatch` | `github.com/complytime/complytime-collector-components/proofwatch` |
+| `beacon-distro/` | `collector-distro/` |
+| `otelcol-beacon` | `otelcol-complytime` |
+| `complybeacon-beacon-distro` (image) | `complytime-collector-distro` (image) |
+| `beacon.evidence` (entity) | `complytime.evidence` |
+| `ComplyBeacon` (prose) | `ComplyTime Collector` |
+
+This touches Go module paths, ScopeName constants, imports, CI workflow job names, image names (GHCR + Quay), Containerfile labels, compose context paths, dependabot config, sonar config, and all docs.
 
 ### 6. Collector pipeline simplification
 
@@ -138,82 +136,45 @@ logs:
   exporters: [debug]
 ```
 
-### 7. Upstream dependency: complyctl Target population
+### 7. Add ClickHouse exporter
 
-complyctl's `Evaluator.GemaraLog()` currently returns `EvaluationLog` with a zero-value `Target` field. For the fan-out to produce useful `policy.target.*` attributes, complyctl must populate `Target` with the scanned repository's `Resource` data. This is tracked as an upstream dependency, not blocked by this change -- proofwatch handles a zero-value `Target` gracefully by omitting `policy.target.*` attributes.
+Add `clickhouseexporter` to the OCB manifest at the same version as other contrib components (`v0.144.0`). Enables direct log export to ClickHouse for analytics and long-term storage.
+
+### 8. validate-logs CLI simplification
+
+Before: accepts `gemara|ocsf|both` format argument, simulates truthbeam enrichment.
+After: no format argument (Gemara-only), no enrichment simulation, simplified main function.
 
 ## Open Decisions
 
-### 8. Attribute namespace: keep policy/compliance dichotomy or unify under Gemara-native naming?
+### 9. Attribute namespace: keep policy/compliance dichotomy or unify under Gemara-native naming?
 
 The current attribute model splits into two namespaces:
 - `policy.*` -- engine, rule, evaluation result, target
 - `compliance.*` -- control, catalog, status, remediation, assessment ID
 
-This split originated from the old architecture where `policy.*` attributes came from the evidence producer and `compliance.*` attributes were added by Compass enrichment. With enrichment removed and all data sourced from a single Gemara `EvaluationLog`, the boundary is an artifact of the pipeline, not the data model.
+This split originated from the old architecture where `policy.*` attributes came from the evidence producer and `compliance.*` attributes were added by Compass enrichment. With enrichment removed and all data sourced from `GemaraEvidence`, the boundary is an artifact of the pipeline, not the data model.
 
 Examples of the mismatch:
 
 | Observation | Issue |
 |:--|:--|
-| `AssessmentLog.Result` → `policy.evaluation.result` but `mapResult(Result)` → `compliance.status` | Same field, two namespaces |
+| `AssessmentLog.Result` → `policy.evaluation.result` but `MapResult(Result)` → `compliance.status` | Same field, two namespaces |
 | `Metadata.Id` → `compliance.assessment.id` but `Metadata.Author.Name` → `policy.engine.name` | Same parent struct, two namespaces |
-| `Control.EntryId` → `compliance.control.id` but `Target.Name` → `policy.target.name` | Parallel Gemara concepts, different namespaces |
 
-**Option A: Keep the dichotomy**
+**Option A: Keep the dichotomy** -- No breaking change. `policy` and `compliance` are arguably two semantic domains. Aligns with OTel domain-based namespacing.
 
-- No breaking change to existing configs, queries, dashboards
-- `policy` and `compliance` are arguably two semantic domains even if the data source is one
-- Aligns with OTel convention of domain-based namespacing (`http.*`, `db.*`, `rpc.*`)
-- Cost: new contributors must learn an arbitrary split that doesn't match the Gemara type hierarchy
+**Option B: Unify under Gemara-native namespace** (`gemara.*`) -- Mirrors SDK hierarchy. Breaking change to all queries/dashboards.
 
-**Option B: Unify under Gemara-native namespace**
+**Option C: Hybrid domain-generic** (`assessment.*`, `control.*`, `target.*`) -- Follows data model, not pipeline. Still a breaking change.
 
-Example mapping:
-
-| Gemara Source | Attribute |
-|:--|:--|
-| `EvaluationLog.Metadata.Author.Name` | `gemara.author.name` |
-| `EvaluationLog.Metadata.Id` | `gemara.evaluation.id` |
-| `EvaluationLog.Target.Name` | `gemara.target.name` |
-| `ControlEvaluation.Control.EntryId` | `gemara.control.id` |
-| `ControlEvaluation.Control.ReferenceId` | `gemara.control.catalog_id` |
-| `AssessmentLog.Result` | `gemara.assessment.result` |
-| `AssessmentLog.Plan.EntryId` | `gemara.plan.id` |
-| `AssessmentLog.Message` | `gemara.assessment.message` |
-| `AssessmentLog.Recommendation` | `gemara.assessment.recommendation` |
-| `AssessmentLog.Applicability` | `gemara.assessment.applicability` |
-| *(derived)* | `gemara.assessment.status` |
-
-- Attribute names mirror the Gemara SDK type hierarchy directly
-- Single namespace, simpler mental model
-- Eliminates the artificial policy/compliance boundary
-- Cost: breaks every existing query, config, and dashboard that references `policy.*` or `compliance.*`
-- Cost: `gemara.*` namespace is project-specific, not domain-generic -- may limit adoption by tools that don't use Gemara
-
-**Option C: Hybrid -- domain namespace, Gemara-aligned structure**
-
-Keep domain-generic names (`assessment.*`, `control.*`, `target.*`) but restructure to follow the Gemara hierarchy rather than the old pipeline boundary:
-
-| Gemara Source | Attribute |
-|:--|:--|
-| `EvaluationLog.Metadata.Author.Name` | `assessment.engine.name` |
-| `EvaluationLog.Metadata.Id` | `assessment.id` |
-| `EvaluationLog.Target.Name` | `target.name` |
-| `ControlEvaluation.Control.EntryId` | `control.id` |
-| `AssessmentLog.Result` | `assessment.result` |
-| `AssessmentLog.Plan.EntryId` | `assessment.plan.id` |
-| *(derived)* | `assessment.status` |
-
-- Domain-generic (not Gemara-specific), could be adopted by non-Gemara tools
-- Follows the data model, not the pipeline
-- Still a breaking change to existing configs
-
-**Status:** Open for discussion. This decision affects the attribute model (`model/attributes.yaml`), all generated docs, proofwatch's attribute constants, and any downstream query or dashboard. Should be resolved before implementation begins.
+**Status:** Open for discussion. The implementation proceeds with the existing dichotomy (Option A) since `proofwatch/attributes.go` constants are centralized and easily changed.
 
 ## Risks / Trade-offs
 
-- **[Catalog-derived attributes dropped]** → `compliance.control.category`, `compliance.frameworks`, `compliance.requirements`, `compliance.risk.level` no longer populated. No known consumers. If needed, query-time enrichment is the appropriate pattern for static reference data.
-- **[Custom distro still needed]** → Even without truthbeam, the collector distro may include non-standard receivers/exporters (webhook, S3, signaltometrics). The custom build remains, but with no custom processor code.
-- **[complyctl Target not populated]** → Until complyctl is updated, `policy.target.*` attributes will be absent. Fan-out still works -- records just lack target context. Proofwatch does not fail on zero-value Target.
-- **[Two evidence APIs in proofwatch]** → `GemaraEvidence` (flat) and `EvaluationLog` fan-out (hierarchical) coexist. This is intentional -- different callers have different needs. The flat API remains useful for simple single-assessment evidence and for `cmd/validate-logs`.
+- **[Catalog-derived attributes dropped]** → No known consumers. Query-time enrichment is the appropriate pattern for static reference data.
+- **[Custom distro still needed]** → Non-standard receivers/exporters (webhook, S3, ClickHouse, signaltometrics). Custom build remains, but with no custom processor code.
+- **[Two evidence APIs not needed]** → The original spec proposed `GemaraEvidence` (flat) + `EvaluationLog` fan-out (hierarchical). Implementation showed only the flat API is needed given current producer constraints. Scope reduced.
+- **[Test helper dependency]** → `proofwatch_test.go` uses `createTestEvidence()` from `ocsf_test.go`. Must replace with `createTestGemaraEvidence()` before deleting OCSF files.
+- **[Vendor directory staleness]** → After removing `go-ocsf`, the vendor directory is stale. Use `-mod=readonly` for builds/tests, or run `go mod vendor` to sync.
+- **[Entity rename]** → `beacon.evidence` → `complytime.evidence` in `model/entities.yaml`. No external consumers of this entity ID.

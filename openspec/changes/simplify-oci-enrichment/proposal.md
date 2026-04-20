@@ -3,19 +3,21 @@
 The repo has four layers of runtime complexity that exist to bridge a gap proofwatch can close at the source:
 
 1. **OCSF support** -- no downstream consumers. All evidence producers use Gemara. Dead code.
-2. **truthbeam processor** -- extracts `policy.*` attributes from log records, calls Compass for compliance enrichment, writes `compliance.*` attributes back. If proofwatch emits fully-mapped OTel log records directly from Gemara `EvaluationLog` types, truthbeam has nothing left to do.
+2. **truthbeam processor** -- extracts `policy.*` attributes from log records, calls Compass for compliance enrichment, writes `compliance.*` attributes back. If proofwatch emits fully-mapped OTel log records directly from Gemara types, truthbeam has nothing left to do.
 3. **Compass / gemara-content-service** -- HTTP service that maps `(engineName, ruleId)` to compliance metadata from a static catalog. The four fields it provides (`category`, `frameworks`, `requirements`, `risk.level`) are catalog reference data better joined at query time. `compliance.status` is derivable locally from `Result`. No runtime service needed.
 4. **mTLS cert infrastructure** -- exists solely to secure the truthbeam-to-compass link.
 
-The Gemara `EvaluationLog` type already carries all the data needed for complete OTel semantic convention mapping:
-- `EvaluationLog.Target` → `policy.target.*` attributes
-- `EvaluationLog.Metadata.Author` → `policy.engine.*` attributes
-- `ControlEvaluation.Control` → `compliance.control.*` attributes
-- `AssessmentLog.Result` → `policy.evaluation.result` + derived `compliance.status`
-- `AssessmentLog.Plan` → `policy.rule.id`
-- `AssessmentLog.Message` / `Recommendation` → `policy.evaluation.message` / `compliance.remediation.description`
+Additionally, the repository was renamed to `complytime-collector-components` but internal references still use `complybeacon` / `beacon`.
 
-Proofwatch should accept an `EvaluationLog`, fan out to one OTel log record per `AssessmentLog`, propagate `Target` and `Control` context from parent objects, and emit fully-mapped semantic convention attributes. The collector becomes a stock distro: receive, batch, export.
+### Evidence model insight
+
+complyctl plugins operate at the **AssessmentLog + Metadata** level, not the full `EvaluationLog` hierarchy. Plugins do not have access to `Target` or `ControlEvaluation` parent context. The existing `GemaraEvidence` type (flat struct: `Metadata` + `AssessmentLog`) is the correct abstraction for evidence emission. An `EvaluationLog` fan-out is not appropriate at the proofwatch layer because:
+
+- Plugins produce individual assessment records, not full evaluation hierarchies
+- The `Target` field on `EvaluationLog` is not populated by complyctl today (zero-value)
+- complyctl merges multiple targets into a single `EvaluationLog`, making the hierarchy unreliable for per-target attribution
+
+`GemaraEvidence` already carries every field needed for a complete OTel log record. The gap is only `compliance.status`, which is a pure function of `Result`.
 
 ## What Changes
 
@@ -24,30 +26,41 @@ Proofwatch should accept an `EvaluationLog`, fan out to one OTel log record per 
 - `proofwatch/ocsf.go`, `proofwatch/ocsf_test.go`, `go-ocsf` dependency
 - `transform/ocsf` processor from all collector configs
 - `compass` service from `compose.yaml`
-- Compass cert generation from `Makefile` and `hack/self-signed-cert/`
-- truthbeam from `beacon-distro/manifest.yaml` (OCB manifest)
-- All truthbeam config from collector configs
+- Cert generation from `Makefile` and `hack/self-signed-cert/`
+- truthbeam from collector distro manifest
+- All truthbeam/OCSF config from collector configs
+- `oapi-codegen` from CI verify-codegen job (only needed for truthbeam's generated client)
+- `simulateTruthBeamEnrichment` from `validate-logs` CLI
 
 **Add:**
-- `EvaluationLog` fan-out in proofwatch: accept `gemara.EvaluationLog`, walk `Evaluations[] → AssessmentLogs[]`, emit one OTel log record per assessment with inherited `Target` and `Control` context
-- `compliance.status` local derivation in proofwatch (port `mapResult()` from truthbeam `internal/applier/status.go`)
-- Full Gemara-to-OTel semantic convention attribute mapping in proofwatch
+- `compliance.status` derivation in `GemaraEvidence.Attributes()` via ported `MapResult()` function
+- `proofwatch/status.go`: `ComplianceStatus` type and `MapResult()` from truthbeam `internal/applier/status.go`
+- ClickHouse exporter to collector distro manifest
+
+**Rename (repo alignment):**
+- Go module: `complybeacon` → `complytime-collector-components`
+- Directory: `beacon-distro/` → `collector-distro/`
+- Distro binary: `otelcol-beacon` → `otelcol-complytime`
+- Container image: `complybeacon-beacon-distro` → `complytime-collector-distro`
+- Semantic convention entity: `beacon.evidence` → `complytime.evidence`
+- Registry manifest name: `beacon` → `complytime`
+- All CI workflow job names, image references, and docs updated accordingly
 
 **Update:**
-- `beacon-distro/manifest.yaml`: remove truthbeam module
-- `beacon-distro/config.yaml`: remove truthbeam and transform/ocsf processors; logs pipeline = `batch` only
-- `hack/demo/demo-config.yaml`: same pipeline simplification
-- `compose.yaml`: remove compass service, compass cert mounts, `depends_on`
-- `Makefile`: remove cert generation, update semantic check targets
-- `model/attributes.yaml`: remove `compliance.enrichment.status`; downgrade catalog-only attributes
-- Docs: `DESIGN.md`, `DEVELOPMENT.md`, `README.md`
+- `collector-distro/manifest.yaml`: remove truthbeam module, add clickhouseexporter
+- `collector-distro/config.yaml`: logs pipeline = `batch` only
+- `hack/demo/demo-config.yaml`: remove truthbeam and transform/ocsf from pipeline
+- `compose.yaml`: remove compass service, cert mounts, `depends_on`; update distro context path
+- `Makefile`: remove cert generation, truthbeam from MODULES, update semantic check targets, remove truthbeam codegen
+- CI: update workflows, dependabot, sonar config
+- Docs: `DESIGN.md`, `DEVELOPMENT.md`, `README.md`, `proofwatch/README.md`, publish_image docs, Hyperproof integration docs
 
 ## Capabilities
 
 ### New Capabilities
 
-- **EvaluationLog fan-out**: Proofwatch accepts a Gemara `EvaluationLog` and produces one OTel log record per `AssessmentLog`, with `Target` and `Control` context propagated from parent objects
-- **Self-contained attribute mapping**: Proofwatch maps all Gemara fields to OTel semantic conventions at the source, including local `compliance.status` derivation
+- **Self-contained attribute mapping**: Proofwatch derives `compliance.status` locally from `gemara.Result` via `MapResult()`, eliminating the need for in-pipeline enrichment
+- **ClickHouse export**: Collector distro includes ClickHouse exporter for analytics and long-term storage
 
 ### Removed Capabilities
 
@@ -56,12 +69,17 @@ Proofwatch should accept an `EvaluationLog`, fan out to one OTel log record per 
 - **`compliance.enrichment.status`**: Removed -- no enrichment, no enrichment status
 - **OCSF evidence format**: Removed -- no consumers
 
+### Changed Capabilities
+
+- **`GemaraEvidence.Attributes()`**: Now includes `compliance.status` in every emitted attribute set
+- **`validate-logs` CLI**: Gemara-only, no format argument, no simulated enrichment
+
 ## Impact
 
-- **proofwatch module**: New `EvaluationLog` fan-out capability; `ocsf.go` deleted; `go-ocsf` dropped; `mapResult()` ported from truthbeam
-- **truthbeam module**: Deleted entirely
-- **beacon-distro**: `manifest.yaml` removes truthbeam module; custom distro retained for non-standard receivers/exporters/extensions but carries no custom processor code
+- **proofwatch module**: `ocsf.go` deleted; `go-ocsf` dropped; `MapResult()` added in `status.go`; `GemaraEvidence.Attributes()` gains `compliance.status`; tests updated
+- **truthbeam module**: Deleted entirely (~5,000 lines removed)
+- **collector-distro**: Renamed from `beacon-distro`; manifest removes truthbeam, adds clickhouseexporter; custom distro retained for non-standard components but carries no custom processor code
 - **Deployment**: Single collector container, no sidecar. No mTLS. `docker compose up` starts loki + grafana + collector only.
 - **Attribute model**: `compliance.enrichment.status` removed; four catalog-derived attributes downgraded
-- **Upstream dependency**: complyctl must populate `EvaluationLog.Target` (currently zero-valued in `evaluator.go` `GemaraLog()`)
+- **Entity model**: `beacon.evidence` → `complytime.evidence`
 - **No downstream impact**: No external OCSF consumers; no known consumers of catalog-derived attributes
