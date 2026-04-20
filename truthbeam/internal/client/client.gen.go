@@ -12,6 +12,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/oapi-codegen/runtime"
 )
 
 // Defines values for ComplianceEnrichmentStatus.
@@ -32,12 +34,26 @@ const (
 	Medium        ComplianceRiskLevel = "Medium"
 )
 
+// Defines values for OCIErrorCode.
+const (
+	BLOBUNKNOWN     OCIErrorCode = "BLOB_UNKNOWN"
+	MANIFESTUNKNOWN OCIErrorCode = "MANIFEST_UNKNOWN"
+	NAMEUNKNOWN     OCIErrorCode = "NAME_UNKNOWN"
+)
+
+// Defines values for OCILayerDescriptorMediaType.
+const (
+	ApplicationvndGemaraCatalogV1Yaml  OCILayerDescriptorMediaType = "application/vnd.gemara.catalog.v1+yaml"
+	ApplicationvndGemaraGuidanceV1Yaml OCILayerDescriptorMediaType = "application/vnd.gemara.guidance.v1+yaml"
+	ApplicationvndGemaraPolicyV1Yaml   OCILayerDescriptorMediaType = "application/vnd.gemara.policy.v1+yaml"
+)
+
 // Compliance Compliance details from OCSF Security Control Profile.
 type Compliance struct {
 	// Control Security control information for compliance assessment
 	Control ComplianceControl `json:"control"`
 
-	// EnrichmentStatus Status of the compliance enrichment process: Success, Unmapped, Partial, Unknown, or Skipped.
+	// EnrichmentStatus Status of the compliance enrichment process
 	EnrichmentStatus ComplianceEnrichmentStatus `json:"enrichmentStatus"`
 
 	// Frameworks Compliance framework and requirement information
@@ -47,7 +63,7 @@ type Compliance struct {
 	Risk *ComplianceRisk `json:"risk,omitempty"`
 }
 
-// ComplianceEnrichmentStatus Status of the compliance enrichment process: Success, Unmapped, Partial, Unknown, or Skipped.
+// ComplianceEnrichmentStatus Status of the compliance enrichment process
 type ComplianceEnrichmentStatus string
 
 // ComplianceControl Security control information for compliance assessment
@@ -105,6 +121,73 @@ type Error struct {
 
 	// Message Error message
 	Message string `json:"message"`
+}
+
+// OCIDescriptor An OCI content descriptor (used for config blobs).
+type OCIDescriptor struct {
+	// Digest Content-addressable digest (e.g. sha256:...).
+	Digest string `json:"digest"`
+
+	// MediaType Media type of the referenced content.
+	MediaType string `json:"mediaType"`
+
+	// Size Size of the content in bytes.
+	Size int64 `json:"size"`
+}
+
+// OCIError A single OCI error entry.
+type OCIError struct {
+	// Code OCI error code. One of: NAME_UNKNOWN, MANIFEST_UNKNOWN,
+	// BLOB_UNKNOWN.
+	Code OCIErrorCode `json:"code"`
+
+	// Detail Optional additional error context.
+	Detail interface{} `json:"detail,omitempty"`
+
+	// Message Human-readable error message.
+	Message string `json:"message"`
+}
+
+// OCIErrorCode OCI error code. One of: NAME_UNKNOWN, MANIFEST_UNKNOWN,
+// BLOB_UNKNOWN.
+type OCIErrorCode string
+
+// OCIErrors OCI Distribution Spec error response.
+type OCIErrors struct {
+	Errors []OCIError `json:"errors"`
+}
+
+// OCILayerDescriptor An OCI layer descriptor for Gemara content. The mediaType field
+// identifies the Gemara layer type of the referenced YAML file.
+type OCILayerDescriptor struct {
+	// Digest Content-addressable digest (e.g. sha256:...).
+	Digest string `json:"digest"`
+
+	// MediaType The Gemara content type of this layer. Identifies which Gemara
+	// layer the YAML content belongs to.
+	MediaType OCILayerDescriptorMediaType `json:"mediaType"`
+
+	// Size Size of the content in bytes.
+	Size int64 `json:"size"`
+}
+
+// OCILayerDescriptorMediaType The Gemara content type of this layer. Identifies which Gemara
+// layer the YAML content belongs to.
+type OCILayerDescriptorMediaType string
+
+// OCIManifest An OCI image manifest describing layers of Gemara compliance content.
+type OCIManifest struct {
+	// Config An OCI content descriptor (used for config blobs).
+	Config OCIDescriptor `json:"config"`
+
+	// Layers Ordered list of layer descriptors. Each layer contains one Gemara YAML file.
+	Layers []OCILayerDescriptor `json:"layers"`
+
+	// MediaType The manifest media type.
+	MediaType string `json:"mediaType"`
+
+	// SchemaVersion Must be 2 for OCI image manifests.
+	SchemaVersion int `json:"schemaVersion"`
 }
 
 // Policy Complete evidence log from policy engines and compliance assessment tools
@@ -196,6 +279,21 @@ type ClientInterface interface {
 	PostV1EnrichWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	PostV1Enrich(ctx context.Context, body PostV1EnrichJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetV2 request
+	GetV2(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetV2Catalog request
+	GetV2Catalog(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetV2NameBlobsDigest request
+	GetV2NameBlobsDigest(ctx context.Context, name string, digest string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetV2NameManifestsReference request
+	GetV2NameManifestsReference(ctx context.Context, name string, reference string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetV2NameTagsList request
+	GetV2NameTagsList(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
 func (c *Client) PostV1EnrichWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -212,6 +310,66 @@ func (c *Client) PostV1EnrichWithBody(ctx context.Context, contentType string, b
 
 func (c *Client) PostV1Enrich(ctx context.Context, body PostV1EnrichJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPostV1EnrichRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetV2(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetV2Request(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetV2Catalog(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetV2CatalogRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetV2NameBlobsDigest(ctx context.Context, name string, digest string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetV2NameBlobsDigestRequest(c.Server, name, digest)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetV2NameManifestsReference(ctx context.Context, name string, reference string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetV2NameManifestsReferenceRequest(c.Server, name, reference)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetV2NameTagsList(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetV2NameTagsListRequest(c.Server, name)
 	if err != nil {
 		return nil, err
 	}
@@ -258,6 +416,176 @@ func NewPostV1EnrichRequestWithBody(server string, contentType string, body io.R
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetV2Request generates requests for GetV2
+func NewGetV2Request(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetV2CatalogRequest generates requests for GetV2Catalog
+func NewGetV2CatalogRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/_catalog")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetV2NameBlobsDigestRequest generates requests for GetV2NameBlobsDigest
+func NewGetV2NameBlobsDigestRequest(server string, name string, digest string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "digest", runtime.ParamLocationPath, digest)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/%s/blobs/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetV2NameManifestsReferenceRequest generates requests for GetV2NameManifestsReference
+func NewGetV2NameManifestsReferenceRequest(server string, name string, reference string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "reference", runtime.ParamLocationPath, reference)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/%s/manifests/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetV2NameTagsListRequest generates requests for GetV2NameTagsList
+func NewGetV2NameTagsListRequest(server string, name string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v2/%s/tags/list", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -309,6 +637,21 @@ type ClientWithResponsesInterface interface {
 	PostV1EnrichWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostV1EnrichResponse, error)
 
 	PostV1EnrichWithResponse(ctx context.Context, body PostV1EnrichJSONRequestBody, reqEditors ...RequestEditorFn) (*PostV1EnrichResponse, error)
+
+	// GetV2WithResponse request
+	GetV2WithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetV2Response, error)
+
+	// GetV2CatalogWithResponse request
+	GetV2CatalogWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetV2CatalogResponse, error)
+
+	// GetV2NameBlobsDigestWithResponse request
+	GetV2NameBlobsDigestWithResponse(ctx context.Context, name string, digest string, reqEditors ...RequestEditorFn) (*GetV2NameBlobsDigestResponse, error)
+
+	// GetV2NameManifestsReferenceWithResponse request
+	GetV2NameManifestsReferenceWithResponse(ctx context.Context, name string, reference string, reqEditors ...RequestEditorFn) (*GetV2NameManifestsReferenceResponse, error)
+
+	// GetV2NameTagsListWithResponse request
+	GetV2NameTagsListWithResponse(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*GetV2NameTagsListResponse, error)
 }
 
 type PostV1EnrichResponse struct {
@@ -334,6 +677,123 @@ func (r PostV1EnrichResponse) StatusCode() int {
 	return 0
 }
 
+type GetV2Response struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *map[string]interface{}
+}
+
+// Status returns HTTPResponse.Status
+func (r GetV2Response) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetV2Response) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetV2CatalogResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Repositories *[]string `json:"repositories,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r GetV2CatalogResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetV2CatalogResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetV2NameBlobsDigestResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON404      *OCIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r GetV2NameBlobsDigestResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetV2NameBlobsDigestResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetV2NameManifestsReferenceResponse struct {
+	Body                                    []byte
+	HTTPResponse                            *http.Response
+	ApplicationvndOciImageManifestV1JSON200 *OCIManifest
+	JSON404                                 *OCIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r GetV2NameManifestsReferenceResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetV2NameManifestsReferenceResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetV2NameTagsListResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Name *string   `json:"name,omitempty"`
+		Tags *[]string `json:"tags,omitempty"`
+	}
+	JSON404 *OCIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r GetV2NameTagsListResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetV2NameTagsListResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 // PostV1EnrichWithBodyWithResponse request with arbitrary body returning *PostV1EnrichResponse
 func (c *ClientWithResponses) PostV1EnrichWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostV1EnrichResponse, error) {
 	rsp, err := c.PostV1EnrichWithBody(ctx, contentType, body, reqEditors...)
@@ -349,6 +809,51 @@ func (c *ClientWithResponses) PostV1EnrichWithResponse(ctx context.Context, body
 		return nil, err
 	}
 	return ParsePostV1EnrichResponse(rsp)
+}
+
+// GetV2WithResponse request returning *GetV2Response
+func (c *ClientWithResponses) GetV2WithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetV2Response, error) {
+	rsp, err := c.GetV2(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetV2Response(rsp)
+}
+
+// GetV2CatalogWithResponse request returning *GetV2CatalogResponse
+func (c *ClientWithResponses) GetV2CatalogWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetV2CatalogResponse, error) {
+	rsp, err := c.GetV2Catalog(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetV2CatalogResponse(rsp)
+}
+
+// GetV2NameBlobsDigestWithResponse request returning *GetV2NameBlobsDigestResponse
+func (c *ClientWithResponses) GetV2NameBlobsDigestWithResponse(ctx context.Context, name string, digest string, reqEditors ...RequestEditorFn) (*GetV2NameBlobsDigestResponse, error) {
+	rsp, err := c.GetV2NameBlobsDigest(ctx, name, digest, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetV2NameBlobsDigestResponse(rsp)
+}
+
+// GetV2NameManifestsReferenceWithResponse request returning *GetV2NameManifestsReferenceResponse
+func (c *ClientWithResponses) GetV2NameManifestsReferenceWithResponse(ctx context.Context, name string, reference string, reqEditors ...RequestEditorFn) (*GetV2NameManifestsReferenceResponse, error) {
+	rsp, err := c.GetV2NameManifestsReference(ctx, name, reference, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetV2NameManifestsReferenceResponse(rsp)
+}
+
+// GetV2NameTagsListWithResponse request returning *GetV2NameTagsListResponse
+func (c *ClientWithResponses) GetV2NameTagsListWithResponse(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*GetV2NameTagsListResponse, error) {
+	rsp, err := c.GetV2NameTagsList(ctx, name, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetV2NameTagsListResponse(rsp)
 }
 
 // ParsePostV1EnrichResponse parses an HTTP response from a PostV1EnrichWithResponse call
@@ -378,6 +883,155 @@ func ParsePostV1EnrichResponse(rsp *http.Response) (*PostV1EnrichResponse, error
 			return nil, err
 		}
 		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetV2Response parses an HTTP response from a GetV2WithResponse call
+func ParseGetV2Response(rsp *http.Response) (*GetV2Response, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetV2Response{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest map[string]interface{}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetV2CatalogResponse parses an HTTP response from a GetV2CatalogWithResponse call
+func ParseGetV2CatalogResponse(rsp *http.Response) (*GetV2CatalogResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetV2CatalogResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Repositories *[]string `json:"repositories,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetV2NameBlobsDigestResponse parses an HTTP response from a GetV2NameBlobsDigestWithResponse call
+func ParseGetV2NameBlobsDigestResponse(rsp *http.Response) (*GetV2NameBlobsDigestResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetV2NameBlobsDigestResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest OCIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetV2NameManifestsReferenceResponse parses an HTTP response from a GetV2NameManifestsReferenceWithResponse call
+func ParseGetV2NameManifestsReferenceResponse(rsp *http.Response) (*GetV2NameManifestsReferenceResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetV2NameManifestsReferenceResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest OCIManifest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationvndOciImageManifestV1JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest OCIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetV2NameTagsListResponse parses an HTTP response from a GetV2NameTagsListWithResponse call
+func ParseGetV2NameTagsListResponse(rsp *http.Response) (*GetV2NameTagsListResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetV2NameTagsListResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Name *string   `json:"name,omitempty"`
+			Tags *[]string `json:"tags,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest OCIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	}
 

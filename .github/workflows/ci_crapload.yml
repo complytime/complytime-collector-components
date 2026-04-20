@@ -20,6 +20,8 @@ jobs:
   crapload:
     name: CRAP Load Analysis
     uses: complytime/org-infra/.github/workflows/reusable_crapload_analysis.yml@main
+    with:
+      go-version-file: ./proofwatch/go.mod
     permissions:
       contents: read
 
