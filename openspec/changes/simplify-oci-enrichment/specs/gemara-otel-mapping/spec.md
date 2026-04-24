@@ -47,7 +47,7 @@ The following attributes SHALL NOT be populated by any pipeline component in the
 
 ### Requirement: EvaluationLog fan-out
 
-The `EvaluationLog` fan-out described in the initial draft is REMOVED from scope. complyctl plugins operate at the `AssessmentLog` + `Metadata` level and do not have access to the full `EvaluationLog` hierarchy. The existing `GemaraEvidence` type is the correct abstraction.
+The `EvaluationLog` fan-out described in the initial draft is REMOVED from scope. complyctl providers operate at the `AssessmentLog` + `Metadata` level and do not have access to the full `EvaluationLog` hierarchy. The existing `GemaraEvidence` type is the correct abstraction.
 
 #### Rationale
 - Plugins produce individual assessment records, not full evaluation hierarchies
