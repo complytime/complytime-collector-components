@@ -6,7 +6,7 @@ toolchain go1.25.9
 
 require (
 	github.com/Santiago-Labs/go-ocsf v0.1.1-0.20250729170529-8b19b43949a6
-	github.com/gemaraproj/go-gemara v0.3.0
+	github.com/gemaraproj/go-gemara v0.4.0
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/collector/pdata v1.56.0
 	go.opentelemetry.io/otel v1.43.0
@@ -39,7 +39,7 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20250506013437-ce4c2cf36ca6 // indirect
 	golang.org/x/mod v0.31.0 // indirect
-	golang.org/x/sync v0.19.0 // indirect
+	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/sys v0.42.0 // indirect
 	golang.org/x/telemetry v0.0.0-20251203150158-8fff8a5912fc // indirect
 	golang.org/x/tools v0.40.0 // indirect
