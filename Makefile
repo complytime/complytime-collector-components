@@ -63,10 +63,12 @@ test-race: ## Runs tests with race detection
 # ------------------------------------------------------------------------------
 # Dependencies for all modules
 # ------------------------------------------------------------------------------
-deps: ## Tidy, verify, download, and vendor deps for all modules
+deps: ## Tidy, verify, and download deps for all modules (workspace-aware)
+	@echo "Syncing workspace..."
+	@go work sync
 	@for m in $(MODULES); do \
 		echo "Processing deps for $$m..."; \
-		(cd $$m && go mod tidy && go mod verify && go mod download && go mod vendor); \
+		(cd $$m && go mod tidy && go mod verify && go mod download); \
 		if [ $$? -ne 0 ]; then \
 			echo "Deps failed for module: $$m"; \
 			exit 1; \
@@ -126,7 +128,7 @@ generate-self-signed-cert: ## Generate self-signed certificates for compass (ext
 	@echo "--- Certificates generated successfully ---"
 .PHONY: generate-self-signed-cert
 
-deploy: ## Deploy infra
+deploy: sync-otel-versions ## Deploy infra (auto-syncs OTel versions first)
 	podman-compose -f compose.yaml up
 .PHONY: deploy
 
@@ -243,6 +245,14 @@ check-go-version: ## Check that Containerfile Go version satisfies all module re
 	fi; \
 	echo "--- Go version check passed ---"
 .PHONY: check-go-version
+
+check-otel-versions: ## Check that manifest.yaml OTel versions align with truthbeam
+	@bash scripts/check-otel-versions.sh
+.PHONY: check-otel-versions
+
+sync-otel-versions: ## Sync manifest.yaml OTel versions from truthbeam (idiomatic Go way)
+	@bash scripts/sync-manifest-versions.sh
+.PHONY: sync-otel-versions
 
 #------------------------------------------------------------------------------
 # CRAP Load Monitoring

@@ -121,6 +121,18 @@ Once you've reviewed the **NOTE** above, follow these steps to deploy the infras
 3. **Enable grafana dashboard:**
     If you want to configure loki as default datasource on grafana and enable pre-build grafana dashboard, refer to [README.md](./hack/demo/terraform/README.md)
 
+## Version Maintenance
+
+After Dependabot updates OpenTelemetry Collector dependencies in `truthbeam/go.mod`, sync the beacon-distro manifest:
+
+```bash
+make sync-otel-versions
+git add beacon-distro/
+git commit -m "chore: sync beacon-distro with truthbeam OTel versions"
+```
+
+CI will block PRs if versions drift between `truthbeam` and `beacon-distro`.
+
 ## Project Design
 
 For additional details on the planned design and roadmap, see [`DESIGN.md`](./docs/DESIGN.md).
