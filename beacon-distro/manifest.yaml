@@ -5,34 +5,34 @@ dist:
   output_path: ./beacon
 
 exporters:
-  - gomod: go.opentelemetry.io/collector/exporter/debugexporter v0.144.0
-  - gomod: go.opentelemetry.io/collector/exporter/otlpexporter v0.144.0
-  - gomod: go.opentelemetry.io/collector/exporter/otlphttpexporter v0.144.0
-  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/exporter/awss3exporter v0.144.0
-  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/exporter/fileexporter v0.144.0
+  - gomod: go.opentelemetry.io/collector/exporter/debugexporter v0.150.0
+  - gomod: go.opentelemetry.io/collector/exporter/otlpexporter v0.150.0
+  - gomod: go.opentelemetry.io/collector/exporter/otlphttpexporter v0.150.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/exporter/awss3exporter v0.150.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/exporter/fileexporter v0.150.0
 
 processors:
-  - gomod: go.opentelemetry.io/collector/processor/batchprocessor v0.144.0
+  - gomod: go.opentelemetry.io/collector/processor/batchprocessor v0.150.0
   - gomod: github.com/complytime/complybeacon/truthbeam v0.0.0-20260424023514-3f2539ffa927
-  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor v0.144.0
-  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/schemaprocessor v0.144.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor v0.150.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/schemaprocessor v0.150.0
 
 receivers:
-  - gomod: go.opentelemetry.io/collector/receiver/otlpreceiver v0.144.0
-  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/webhookeventreceiver v0.144.0
-  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/filelogreceiver v0.144.0
+  - gomod: go.opentelemetry.io/collector/receiver/otlpreceiver v0.150.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/webhookeventreceiver v0.150.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/filelogreceiver v0.150.0
 
 
 providers:
-  - gomod: go.opentelemetry.io/collector/confmap/provider/envprovider v1.50.0
-  - gomod: go.opentelemetry.io/collector/confmap/provider/fileprovider v1.50.0
-  - gomod: go.opentelemetry.io/collector/confmap/provider/httpprovider v1.50.0
-  - gomod: go.opentelemetry.io/collector/confmap/provider/httpsprovider v1.50.0
-  - gomod: go.opentelemetry.io/collector/confmap/provider/yamlprovider v1.50.0
+  - gomod: go.opentelemetry.io/collector/confmap/provider/envprovider v1.56.0
+  - gomod: go.opentelemetry.io/collector/confmap/provider/fileprovider v1.56.0
+  - gomod: go.opentelemetry.io/collector/confmap/provider/httpprovider v1.56.0
+  - gomod: go.opentelemetry.io/collector/confmap/provider/httpsprovider v1.56.0
+  - gomod: go.opentelemetry.io/collector/confmap/provider/yamlprovider v1.56.0
 
 connectors:
-  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/connector/signaltometricsconnector v0.144.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/connector/signaltometricsconnector v0.150.0
 
 extensions:
-  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/oidcauthextension v0.144.0
-  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/bearertokenauthextension v0.144.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/oidcauthextension v0.150.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/bearertokenauthextension v0.150.0
