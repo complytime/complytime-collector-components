@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"time"
 
-	ocsf "github.com/Santiago-Labs/go-ocsf/ocsf/v1_5_0"
+	ocsf "github.com/telophasehq/go-ocsf/ocsf/v1_5_0"
 	"go.opentelemetry.io/otel/attribute"
 )
 

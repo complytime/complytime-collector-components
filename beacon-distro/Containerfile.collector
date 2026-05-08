@@ -1,27 +1,23 @@
 # Multi-stage build for ComplyBeacon OpenTelemetry Collector
-# Stage 1: Extract CA certificates from UBI
-# Stage 2: Build the collector binary using the builder tool
-# Stage 3: Create minimal runtime image with UBI Micro base
+# Stage 1: Build the collector binary using the builder tool
+# Stage 2: Create minimal runtime image with UBI Micro base
 
-# Stage 1: Certificate extraction
-# Using UBI10 minimal for Red Hat ecosystem alignment
-FROM registry.access.redhat.com/ubi10/ubi-minimal@sha256:a5f93d49cd946fe616205b8b5baead67530530aac34559d00d64a91e3c2e2830 AS certs
-RUN microdnf install -y ca-certificates && microdnf clean all
-
-# Stage 2: Build the OpenTelemetry Collector
-FROM golang:1.25.9 AS build-stage
+# Stage 1: Build the OpenTelemetry Collector
+FROM golang:1.26.3@sha256:e3665e241a474aba30bbfaf177cfa88e1913e970c83bd86889cacfb67d6e7e51 AS build-stage
 WORKDIR /build
 
 # Build the collector using the OpenTelemetry collector builder
-# The builder version (v0.151.0) should align with dependencies in manifest.yaml
+# The builder version should align with dependencies in manifest.yaml
 # Split into two RUN commands for better layer caching
-RUN --mount=type=cache,target=/root/.cache/go-build GO111MODULE=on go install go.opentelemetry.io/collector/cmd/builder@v0.151.0
+RUN --mount=type=cache,target=/root/.cache/go-build GO111MODULE=on go install go.opentelemetry.io/collector/cmd/builder@v0.152.0
 
-# Copy the manifest that defines the collector components
-COPY ./manifest.yaml manifest.yaml
+# Copy the manifest and truthbeam source (needed for replace directive)
+# Build context is the repo root, so paths are relative to workspace root
+COPY beacon-distro/manifest.yaml manifest.yaml
+COPY truthbeam/ truthbeam/
 RUN --mount=type=cache,target=/root/.cache/go-build builder --config manifest.yaml
 
-# Stage 3: Runtime image
+# Stage 2: Runtime image
 # Using UBI10 Micro (minimal runtime base, similar to distroless)
 FROM registry.access.redhat.com/ubi10/ubi-micro@sha256:1983e3d2fa54a1afedf015ad4d8f9cfaeed15182d9cf532e5cb35de2c1bda580
 
@@ -39,12 +35,10 @@ ARG USER_UID=10001
 USER ${USER_UID}
 
 # Copy artifacts and dependencies in order of change frequency (least to most)
-# CA certificates - rarely change (Red Hat/UBI path)
-COPY --from=certs /etc/pki/tls/certs/ca-bundle.crt /etc/pki/tls/certs/ca-bundle.crt
 # Collector binary - changes with code updates
 COPY --chmod=755 --from=build-stage /build/beacon/otelcol-beacon /otelcol-beacon
-# Configuration - most frequently modified
-COPY config.yaml /etc/otelcol-beacon/config.yaml
+# Configuration - most frequently modified (build context is repo root)
+COPY beacon-distro/config.yaml /etc/otelcol-beacon/config.yaml
 
 ENTRYPOINT ["/otelcol-beacon"]
 CMD ["--config", "/etc/otelcol-beacon/config.yaml"]

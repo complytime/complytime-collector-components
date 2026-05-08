@@ -1,5 +1,15 @@
 # ComplyBeacon
 
+----
+
+> 🤖 LLM WARNING 🤖
+>
+> This project was written with LLM (AI) assistance.
+>
+> 🤖 LLM WARNING 🤖
+
+----
+
 **ComplyBeacon** is an open-source observability toolkit that collects, normalizes, and enriches compliance evidence by extending the OpenTelemetry (OTel) standard.
 
 It bridges the gap between raw policy scanner output and modern logging pipelines, providing a unified, enriched, and auditable data stream for security and compliance analysis.
@@ -100,7 +110,7 @@ graph TB
 
 ## Prerequisites
 
-- **Go 1.25+**
+- **Go 1.26+**
 - **Task** ([taskfile.dev](https://taskfile.dev/installation/))
 - **Podman**
 - **Git**
@@ -135,7 +145,7 @@ task infra:undeploy
 # Send sample compliance evidence
 curl -X POST http://localhost:8088/eventsource/receiver \
   -H "Content-Type: application/json" \
-  -d @hack/sampledata/evidence.json
+  -d @tests/integration/fixtures/evidence-fail.json
 
 # View enriched logs in Grafana at http://localhost:3000
 ```
@@ -146,10 +156,10 @@ The demo stack includes [rustfs](https://github.com/rustfs/rustfs), an S3-compat
 
 After `task infra:deploy`, the following are available:
 
-| Service        | URL                       | Credentials                    |
-|----------------|---------------------------|--------------------------------|
-| rustfs S3 API  | <http://localhost:9000>     | `rustfsadmin` / `rustfsadmin`  |
-| rustfs Console | <http://localhost:9001>     | `rustfsadmin` / `rustfsadmin`  |
+| Service        | URL                     | Credentials                   |
+|----------------|-------------------------|-------------------------------|
+| rustfs S3 API  | <http://localhost:9000> | `rustfsadmin` / `rustfsadmin` |
+| rustfs Console | <http://localhost:9001> | `rustfsadmin` / `rustfsadmin` |
 
 Evidence files are written to the `complybeacon-evidence` bucket and can be browsed in the rustfs console.
 
@@ -157,14 +167,14 @@ Evidence files are written to the `complybeacon-evidence` bucket and can be brow
 
 To export evidence to a real AWS S3 bucket, override the defaults by exporting environment variables before starting the stack:
 
-| Variable               | Default (local dev)        | Description                     |
-|------------------------|----------------------------|---------------------------------|
-| `AWS_REGION`           | `us-east-1`               | AWS region of your S3 bucket    |
-| `S3_BUCKETNAME`        | `complybeacon-evidence`    | Target S3 bucket name           |
-| `S3_OBJ_DIR`           | `evidence`                 | Folder prefix for objects       |
-| `AWS_ACCESS_KEY_ID`    | `rustfsadmin`              | AWS access key                  |
-| `AWS_SECRET_ACCESS_KEY`| `rustfsadmin`              | Corresponding secret key        |
-| `S3_ENDPOINT`          | `http://rustfs:9000`       | S3 endpoint (unset for AWS)     |
+| Variable                | Default (local dev)     | Description                  |
+|-------------------------|-------------------------|------------------------------|
+| `AWS_REGION`            | `us-east-1`             | AWS region of your S3 bucket |
+| `S3_BUCKETNAME`         | `complybeacon-evidence` | Target S3 bucket name        |
+| `S3_OBJ_DIR`            | `evidence`              | Folder prefix for objects    |
+| `AWS_ACCESS_KEY_ID`     | `rustfsadmin`           | AWS access key               |
+| `AWS_SECRET_ACCESS_KEY` | `rustfsadmin`           | Corresponding secret key     |
+| `S3_ENDPOINT`           | `http://rustfs:9000`    | S3 endpoint (unset for AWS)  |
 
 Production deployments should use a dedicated collector configuration with `disable_ssl: false` and `s3_force_path_style: false`. See [Sync_Evidence2Hyperproof](docs/integration/Sync_Evidence2Hyperproof.md) for the full AWS integration guide.
 
@@ -179,6 +189,7 @@ task test                  # Run tests with coverage
 task test-race             # Run tests with race detection
 task lint                  # Run golangci-lint
 task check                 # Run all quality gates (lint + test)
+task test:integration      # Run end-to-end integration tests (Ginkgo)
 task deps                  # Tidy, verify, and download dependencies
 task workspace             # Set up Go workspace
 task clean                 # Remove build artifacts and test output
@@ -218,13 +229,13 @@ task build IMAGE=ghcr.io/complytime/complybeacon TAG=v1.0.0
 
 # Run standalone (without compose)
 podman run --rm \
-  -v ./hack/demo/demo-config.yaml:/etc/otel-collector.yaml:Z \
+  -v ./configs/collector-enrichment.yaml:/etc/otel-collector.yaml:Z \
   -p 4317:4317 -p 8088:8088 \
   complybeacon/collector:latest \
   --config=/etc/otel-collector.yaml
 ```
 
-**Grafana Dashboard:** To configure Loki as default datasource, see [hack/demo/terraform/README.md](./hack/demo/terraform/README.md).
+**Grafana Dashboard:** To configure Loki as default datasource, see [deploy/terraform/README.md](./deploy/terraform/README.md).
 
 ## Additional Resources
 

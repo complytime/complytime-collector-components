@@ -1,26 +1,14 @@
-version: '3'
+version: "3"
 
 tasks:
-  default:
-    silent: true
-    cmd: task version --list
+  sync:
+    desc: Sync Go and OTel versions across all modules, Containerfiles, CI, and docs
+    deps:
+      - task: :dev:workspace
+    cmd: bash {{.ROOT_DIR}}/.taskfiles/scripts/version-sync.sh
 
-  check-go-version:
-    desc: Check that Containerfile Go version satisfies all module requirements
-    cmd: bash {{.ROOT_DIR}}/.taskfiles/scripts/check-go-version.sh
-
-  check-otel-versions:
-    desc: Check that manifest.yaml OTel versions align with truthbeam
-    cmd: bash {{.ROOT_DIR}}/.taskfiles/scripts/check-otel-versions.sh
-
-  check-go-mod-consistency:
-    desc: Check that OTel dependencies within each go.mod are consistent
-    cmd: bash {{.ROOT_DIR}}/.taskfiles/scripts/check-go-mod-consistency.sh
-
-  sync-otel-versions:
-    desc: Sync manifest.yaml OTel versions from truthbeam (idiomatic Go way)
-    cmd: bash {{.ROOT_DIR}}/.taskfiles/scripts/sync-manifest-versions.sh
-
-  sync-all-otel-versions:
-    desc: Sync all OTel versions to highest found across all modules
-    cmd: bash {{.ROOT_DIR}}/.taskfiles/scripts/sync-all-otel-versions.sh
+  check:
+    desc: Validate version alignment (read-only, for CI)
+    deps:
+      - task: :dev:workspace
+    cmd: bash {{.ROOT_DIR}}/.taskfiles/scripts/version-check.sh

@@ -1,0 +1,189 @@
+version: "3"
+
+vars:
+  GINKGO_OUTPUT_DIR: '{{.TEST_DIR | default (printf "%s/.test-output" .ROOT_DIR)}}/integration'
+  CERT_DIR: '{{.CERT_DIR | default (printf "%s/certs" .ROOT_DIR)}}'
+
+tasks:
+  default:
+    silent: true
+    cmd: task integration --list
+
+  ensure-certs:
+    desc: Generate self-signed certificates if they do not exist
+    status:
+      - test -f {{.CERT_DIR}}/compass.crt
+      - test -f {{.CERT_DIR}}/compass.key
+      - test -f {{.CERT_DIR}}/truthbeam.crt
+      - test -f {{.CERT_DIR}}/truthbeam.key
+      - test -f {{.CERT_DIR}}/rustfs.crt
+      - test -f {{.CERT_DIR}}/rustfs.key
+    cmds:
+      - task: :infra:generate-self-signed-cert
+
+  test:
+    desc: Run all integration test layers sequentially
+    cmds:
+      - task: ensure-certs
+      - task: test-layer
+        vars: { PROFILE: base }
+      - task: test-layer
+        vars: { PROFILE: storage }
+      - task: test-layer
+        vars: { PROFILE: enrichment }
+
+  test-profile:
+    desc: "Run a single integration test layer (PROFILE=base|storage|enrichment|storage-tls)"
+    requires:
+      vars: [PROFILE]
+    cmds:
+      - task: ensure-certs
+      - task: test-layer
+        vars: { PROFILE: "{{.PROFILE}}" }
+
+  test-layer:
+    internal: true
+    requires:
+      vars: [PROFILE]
+    vars:
+      COLLECTOR_CONFIG:
+        sh: |
+          case "{{.PROFILE}}" in
+            base) echo "configs/collector-base.yaml" ;;
+            storage) echo "configs/collector-storage.yaml" ;;
+            storage-tls) echo "configs/collector-storage-tls.yaml" ;;
+            enrichment) echo "configs/collector-enrichment.yaml" ;;
+            *) echo "INVALID_PROFILE" ;;
+          esac
+      COMPOSE_PROFILES:
+        sh: |
+          case "{{.PROFILE}}" in
+            base) echo "" ;;
+            storage) echo "--profile storage" ;;
+            storage-tls) echo "--profile storage-tls" ;;
+            enrichment) echo "--profile storage --profile enrichment" ;;
+            *) echo "" ;;
+          esac
+      GINKGO_FLAGS:
+        sh: |
+          if [ "${CI:-}" = "true" ]; then
+            echo "--succinct"
+          else
+            echo "-vv"
+          fi
+      TEST_DIR: './tests/integration/{{.PROFILE | replace "-" "_"}}/'
+    env:
+      COLLECTOR_CONFIG: "{{.COLLECTOR_CONFIG}}"
+      GOWORK: "off"
+    cmds:
+      - echo "=== Running {{.PROFILE}} layer ==="
+      - task: :infra:build
+      - defer:
+          { task: down, vars: { COMPOSE_PROFILES: "{{.COMPOSE_PROFILES}}" } }
+      - podman-compose -f compose.yaml {{.COMPOSE_PROFILES}} up -d --build
+      - task: wait
+        vars: { PROFILE: "{{.PROFILE}}" }
+      - mkdir -p {{.GINKGO_OUTPUT_DIR}}
+      - go tool ginkgo run {{.GINKGO_FLAGS}} --output-dir={{.GINKGO_OUTPUT_DIR}} --junit-report=junit-{{.PROFILE}}.xml {{.TEST_DIR}}
+
+  up:
+    desc: "Start integration stack without running tests (for IDE debugging)"
+    requires:
+      vars: [PROFILE]
+    vars:
+      COLLECTOR_CONFIG:
+        sh: |
+          case "{{.PROFILE}}" in
+            base) echo "configs/collector-base.yaml" ;;
+            storage) echo "configs/collector-storage.yaml" ;;
+            storage-tls) echo "configs/collector-storage-tls.yaml" ;;
+            enrichment) echo "configs/collector-enrichment.yaml" ;;
+            *) echo "INVALID_PROFILE" ;;
+          esac
+      COMPOSE_PROFILES:
+        sh: |
+          case "{{.PROFILE}}" in
+            base) echo "" ;;
+            storage) echo "--profile storage" ;;
+            storage-tls) echo "--profile storage-tls" ;;
+            enrichment) echo "--profile storage --profile enrichment" ;;
+            *) echo "" ;;
+          esac
+      TEST_DIR: './tests/integration/{{.PROFILE | replace "-" "_"}}/'
+    env:
+      COLLECTOR_CONFIG: "{{.COLLECTOR_CONFIG}}"
+    cmds:
+      - task: ensure-certs
+      - task: :infra:build
+      - podman-compose -f compose.yaml {{.COMPOSE_PROFILES}} up -d --build
+      - task: wait
+        vars: { PROFILE: "{{.PROFILE}}" }
+      - cmd: 'echo "Stack running. Run tests with: GOWORK=off go tool ginkgo run -vv {{.TEST_DIR}}"'
+      - cmd: 'echo "Tear down with: task integration:down"'
+
+  wait:
+    internal: true
+    vars:
+      PROFILE: '{{.PROFILE | default "base"}}'
+    cmd: |
+      dump_container_info() {
+        local cid="$1" tail="${2:-10}"
+        if [[ -n "$cid" ]]; then
+          podman ps -a --filter "name=$cid" --format json 2>/dev/null | \
+            python3 -c "import sys,json; [print(n[0],c.get('Status','')) for c in json.load(sys.stdin) for n in [c.get('Names',[])]]" 2>/dev/null || true
+          podman logs --tail "$tail" "$cid" 2>&1 || true
+        fi
+      }
+
+      wait_for_service() {
+        local name="$1" url="$2" curl_flags="${3:-}" cid="${4:-}"
+        for i in $(seq 1 30); do
+          if curl -sf $curl_flags "$url" >/dev/null 2>&1; then
+            echo "$name: ready"
+            return 0
+          fi
+          echo "$name: waiting... ($i/30)"
+          if [[ -n "$cid" ]] && (( i % 5 == 0 )); then
+            echo "--- $name diagnostics ---"
+            dump_container_info "$cid"
+            echo "---"
+          fi
+          sleep 2
+        done
+        echo "$name: FAILED after 30 retries"
+        echo "=== $name final diagnostics ==="
+        dump_container_info "$cid" 30
+        echo "==="
+        return 1
+      }
+
+      # Build service→container name map from podman-compose (project-scoped)
+      declare -A CONTAINERS
+      while read -r cname; do
+        for svc in collector loki rustfs rustfs-tls compass; do
+          if [[ "$cname" == *"_${svc}_"* ]]; then
+            CONTAINERS["$svc"]="$cname"
+          fi
+        done
+      done < <(podman-compose -f compose.yaml ps --format json 2>/dev/null | \
+               python3 -c "import sys,json; [print(n) for c in json.load(sys.stdin) for n in c.get('Names',[])]" 2>/dev/null || true)
+      echo "Resolved containers:"
+      for svc in "${!CONTAINERS[@]}"; do echo "  $svc -> ${CONTAINERS[$svc]}"; done
+
+      echo "Waiting for services to be ready..."
+      wait_for_service "Collector webhook" "http://localhost:8088/eventreceiver/healthcheck" "" "${CONTAINERS[collector]:-}"
+      wait_for_service "Loki" "http://localhost:3100/ready" "" "${CONTAINERS[loki]:-}"
+      {{if or (eq .PROFILE "storage") (eq .PROFILE "enrichment")}}
+      wait_for_service "RustFS" "http://localhost:9000/health" "" "${CONTAINERS[rustfs]:-}"
+      {{end}}
+      {{if eq .PROFILE "storage-tls"}}
+      wait_for_service "RustFS TLS" "https://localhost:9000/health" "-k" "${CONTAINERS[rustfs-tls]:-}"
+      {{end}}
+      {{if eq .PROFILE "enrichment"}}
+      wait_for_service "Mock Compass" "https://localhost:8081/healthz" "-sk" "${CONTAINERS[compass]:-}"
+      {{end}}
+      echo "All services ready."
+
+  down:
+    desc: Tear down integration test stack
+    cmd: podman-compose -f compose.yaml {{.COMPOSE_PROFILES}} down -v

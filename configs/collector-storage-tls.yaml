@@ -33,14 +33,6 @@ processors:
   batch/metrics:
     timeout: 1s
     send_batch_size: 10
-  truthbeam:
-    endpoint: "https://compass:8081"
-    # Disable compression for small enrichment API requests
-    # Compression overhead is unnecessary for ~200 byte payloads
-    compression: ""
-    tls:
-      ca_file: /certs/truthbeam.crt
-
   # Transform processor: extracts metric data from OTLP JSON and converts to log attributes
   transform/metrics_to_logs:
     error_mode: ignore
@@ -165,7 +157,8 @@ exporters:
       s3_prefix: ${S3_OBJ_DIR}
       endpoint: ${S3_ENDPOINT}
       s3_force_path_style: true
-      disable_ssl: true
+      disable_ssl: false
+      insecure: true # Allow self-signed certificates for testing
       unique_key_func_name: uuidv7
       s3_partition_format: ""
       file_prefix: "evidence_"
@@ -194,5 +187,5 @@ service:
       exporters: [debug]
     logs/analysis_pipeline:
       receivers: [webhookevent, otlp]
-      processors: [batch, transform/ocsf, truthbeam]
+      processors: [batch, transform/ocsf]
       exporters: [debug, otlphttp/logs, awss3/logs, signaltometrics]

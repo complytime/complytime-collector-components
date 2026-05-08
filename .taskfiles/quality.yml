@@ -1,9 +1,8 @@
-version: '3'
+version: "3"
 
 vars:
   # Task v3 does not inherit root vars in included files; keep in sync with Taskfile.yml.
   MODULES: '{{.MODULES | default "./proofwatch ./truthbeam"}}'
-  GAZE_VERSION: '{{.GAZE_VERSION | default "latest"}}'
   GAZE_COVERPROFILE: '{{.GAZE_COVERPROFILE | default "coverage.out"}}'
   GAZE_NEW_FUNC_THRESHOLD: '{{.GAZE_NEW_FUNC_THRESHOLD | default "30"}}'
 
@@ -12,29 +11,20 @@ tasks:
     silent: true
     cmd: task quality --list
 
-  ensure-gaze:
-    desc: Install gaze if not present
-    internal: true
-    cmd: command -v gaze >/dev/null 2>&1 || (echo "Installing gaze..." && go install github.com/unbound-force/gaze/cmd/gaze@{{.GAZE_VERSION}})
-    run: once
-
   crapload:
     desc: Run CRAP and GazeCRAP analysis (human-readable) for all modules
-    deps: [ensure-gaze]
     cmds:
       - task: :dev:test
       - bash {{.ROOT_DIR}}/.taskfiles/scripts/go-module-runner.sh crapload
 
   crapload-baseline:
     desc: Generate baseline thresholds in .gaze/baseline.json for all modules
-    deps: [ensure-gaze]
     cmds:
       - task: :dev:test
       - bash {{.ROOT_DIR}}/.taskfiles/scripts/go-module-runner.sh crapload-baseline
 
   crapload-check:
     desc: Check for CRAP regressions against baseline for all modules
-    deps: [ensure-gaze]
     cmds:
       - task: :dev:test
       - bash {{.ROOT_DIR}}/.taskfiles/scripts/go-module-runner.sh crapload-check

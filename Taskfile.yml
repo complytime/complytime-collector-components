@@ -1,4 +1,13 @@
-version: '3'
+version: "3"
+
+# pipefail: without this, `go test | tee` always exits 0 (tee's exit code)
+# even when tests fail, silently masking failures. Must be set here in the
+# root Taskfile — Taskfile v3 silently ignores file-level `set:` in included
+# taskfiles (.taskfiles/*.yml).
+set: [pipefail]
+
+env:
+  GOTOOLCHAIN: auto
 
 includes:
   dev:
@@ -11,13 +20,17 @@ includes:
     taskfile: .taskfiles/version.yml
   quality:
     taskfile: .taskfiles/quality.yml
+  integration:
+    taskfile: .taskfiles/integration.yml
+  tools:
+    taskfile: .taskfiles/tools.yml
 
 vars:
   APP_NAME: '{{.APP_NAME | default "complybeacon"}}'
   TEST_DIR: '{{.TEST_DIR | default ".test-output"}}'
-  MODULES: './proofwatch ./truthbeam'
+  MODULES: "./proofwatch ./truthbeam"
   BIN_DIR: '{{.BIN_DIR | default "bin"}}'
-  CERT_DIR: '{{.CERT_DIR | default "hack/self-signed-cert"}}'
+  CERT_DIR: '{{.CERT_DIR | default "certs"}}'
 
 tasks:
   default:
@@ -74,3 +87,8 @@ tasks:
     cmds:
       - rm -rf {{.BIN_DIR}} {{.TEST_DIR}}
       - GOFLAGS= go clean -modcache
+
+  test:integration:
+    desc: "Run integration tests (all layers, or PROFILE=base|storage|enrichment)"
+    cmds:
+      - task: integration:test

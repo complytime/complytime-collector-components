@@ -1,0 +1,13 @@
+FROM golang:1.26.3@sha256:e3665e241a474aba30bbfaf177cfa88e1913e970c83bd86889cacfb67d6e7e51 AS build
+WORKDIR /build
+COPY go.mod ./
+RUN go mod download
+COPY main.go ./
+RUN CGO_ENABLED=0 go build -o mock-compass .
+
+FROM registry.access.redhat.com/ubi10/ubi-micro@sha256:1983e3d2fa54a1afedf015ad4d8f9cfaeed15182d9cf532e5cb35de2c1bda580
+COPY --from=build /build/mock-compass /mock-compass
+HEALTHCHECK --interval=5s --timeout=3s --start-period=5s --retries=3 \
+  CMD ["/mock-compass", "-healthcheck"]
+USER 65534
+ENTRYPOINT ["/mock-compass"]

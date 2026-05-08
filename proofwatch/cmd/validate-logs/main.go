@@ -1,14 +1,15 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
-	ocsf "github.com/Santiago-Labs/go-ocsf/ocsf/v1_5_0"
 	"github.com/gemaraproj/go-gemara"
+	ocsf "github.com/telophasehq/go-ocsf/ocsf/v1_5_0"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/otel/attribute"
@@ -245,11 +246,26 @@ func main() {
 	format := os.Args[1]
 	outputFile := "stdout"
 	if len(os.Args) > 2 {
-		outputFile = os.Args[2]
+		outputFile = filepath.Clean(os.Args[2])
+
+		// Security: Validate output path to prevent directory traversal
+		if strings.Contains(outputFile, "..") {
+			fmt.Fprintf(os.Stderr, "Error: Path traversal detected in output file path\n")
+			os.Exit(1)
+		}
+
+		// Ensure the output file is not an absolute path to sensitive locations
+		if filepath.IsAbs(outputFile) {
+			if strings.HasPrefix(outputFile, "/etc/") ||
+				strings.HasPrefix(outputFile, "/sys/") ||
+				strings.HasPrefix(outputFile, "/proc/") ||
+				strings.HasPrefix(outputFile, "/dev/") {
+				fmt.Fprintf(os.Stderr, "Error: Cannot write to system directories\n")
+				os.Exit(1)
+			}
+		}
 	}
 
-	ctx := context.Background()
-	_ = ctx // Suppress unused variable warning
 	var allLogs []plog.Logs
 
 	if format == "gemara" || format == "both" {

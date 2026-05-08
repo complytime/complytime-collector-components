@@ -1,4 +1,4 @@
-version: '3'
+version: "3"
 
 vars:
   # Task v3 does not inherit root vars in included files; keep in sync with Taskfile.yml.
@@ -11,8 +11,17 @@ tasks:
     cmd: task dev --list
 
   workspace:
-    desc: Setup a Go workspace with all modules
-    cmd: test -f go.work || go work init && go work use {{.MODULES}}
+    desc: Setup a Go workspace with all modules (auto-discovers go.mod files)
+    cmds:
+      - |
+        if [ ! -f go.work ]; then
+          go work init
+        fi
+        # Auto-discover all directories containing go.mod (excluding vendor)
+        find . -type f -name 'go.mod' -not -path '*/vendor/*' -exec dirname {} \; | while read -r dir; do
+          go work use "$dir"
+        done
+        echo "Workspace configured with all discovered modules"
 
   deps:
     desc: Tidy, verify, and download deps for all modules (workspace-aware)
@@ -22,12 +31,16 @@ tasks:
       - go work sync
       - bash {{.ROOT_DIR}}/.taskfiles/scripts/go-module-runner.sh deps
 
+  deps:update:
+    desc: Update all dependencies (workspace modules + tests/integration) to latest versions
+    deps: [workspace]
+    cmds:
+      - bash {{.ROOT_DIR}}/.taskfiles/scripts/go-module-runner.sh deps-update
+
   test:
     desc: Run unit tests with coverage and version checks for all modules
     cmds:
-      - task: :version:check-go-version
-      - task: :version:check-go-mod-consistency
-      - task: :version:check-otel-versions
+      - task: :version:check
       - mkdir -p {{.TEST_DIR}}
       - bash {{.ROOT_DIR}}/.taskfiles/scripts/go-module-runner.sh test
 

@@ -1,0 +1,31 @@
+version: "3"
+
+# External tool installation with integrity verification
+# Uses .tool_checksums file for SHA256 verification
+
+vars:
+  TOOLS_DIR: '{{.TOOLS_DIR | default "/usr/local/bin"}}'
+  CHECKSUMS_FILE: "{{.ROOT_DIR}}/.tool_checksums"
+
+tasks:
+  install-weaver:
+    desc: "Install weaver with SHA256 verification"
+    vars:
+      WEAVER_URL: "https://github.com/open-telemetry/weaver/releases/download/{{.WEAVER_VERSION}}/weaver-x86_64-unknown-linux-gnu.tar.xz"
+    cmds:
+      - curl -fL -o /tmp/weaver.tar.xz "{{.WEAVER_URL}}"
+      - |
+        WEAVER_SHA=$(grep "weaver/{{.WEAVER_VERSION}}/linux/x86_64" {{.CHECKSUMS_FILE}} | cut -d: -f2 | tr -d ' ')
+        echo "${WEAVER_SHA}  /tmp/weaver.tar.xz" | sha256sum -c -
+      - tar -xJf /tmp/weaver.tar.xz -C /tmp
+      - install /tmp/weaver-x86_64-unknown-linux-gnu/weaver {{.TOOLS_DIR}}/weaver
+      - rm -rf /tmp/weaver.tar.xz /tmp/weaver-x86_64-unknown-linux-gnu/
+      - weaver --version
+    status:
+      - test -x {{.TOOLS_DIR}}/weaver
+      - weaver --version | grep -q "{{.WEAVER_VERSION}}"
+
+  install-all:
+    desc: "Install all external tools"
+    cmds:
+      - task: install-weaver

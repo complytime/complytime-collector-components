@@ -1,0 +1,30 @@
+{
+  "github_branch_protection": {
+    "compliance": {
+      "control": {
+        "id": "OSPS-QA-07.01",
+        "catalogId": "OSPS",
+        "category": "Quality Assurance"
+      },
+      "enrichmentStatus": "Success",
+      "frameworks": {
+        "frameworks": ["OSPS Baseline 2025-02"],
+        "requirements": ["OSPS-QA-07.01"]
+      }
+    }
+  },
+  "code_review": {
+    "compliance": {
+      "control": {
+        "id": "OSPS-QA-07.02",
+        "catalogId": "OSPS",
+        "category": "Quality Assurance"
+      },
+      "enrichmentStatus": "Success",
+      "frameworks": {
+        "frameworks": ["OSPS Baseline 2025-02"],
+        "requirements": ["OSPS-QA-07.02"]
+      }
+    }
+  }
+}

@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	ocsf "github.com/Santiago-Labs/go-ocsf/ocsf/v1_5_0"
 	"github.com/stretchr/testify/assert"
+	ocsf "github.com/telophasehq/go-ocsf/ocsf/v1_5_0"
 )
 
 func TestOCSFEvidenceAttributes(t *testing.T) {

@@ -143,3 +143,5 @@ err = pw.LogWithSeverity(ctx, evidence, olog.SeverityWarn)
 * Receiving an EnrichmentRequest from `truthbeam`.
 * Performing a lookup based on the policy details.
 * Returning an EnrichmentResponse with compliance attributes.
+
+The full evidence pipeline is validated by automated integration tests in `tests/integration/`. See `docs/DEVELOPMENT.md` for how to run them.

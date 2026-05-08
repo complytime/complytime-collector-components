@@ -36,7 +36,7 @@ It complements the [DESIGN.md](./DESIGN.md) document by focusing on the practica
 
 ### Required Software
 
-- **Go 1.25+**: The project uses Go 1.25.8 with toolchain 1.25.9
+- **Go 1.26+**: The project uses Go 1.26.3
 - **Podman**: For containerized development and deployment (Docker is not supported)
 - **Task**: For build automation ([installation guide](https://taskfile.dev/installation/))
 - **Git**: For version control
@@ -104,6 +104,115 @@ task test
 task check
 ```
 
+## Dependency Management
+
+### Regular Dependency Updates
+
+Update all Go packages to their latest versions:
+
+```bash
+task dev:deps:update
+```
+
+This command automatically:
+- Updates all non-OTel Go packages to the latest versions
+- **Excludes OTel packages** (they are updated manually - see below)
+- Runs `go mod tidy` for all modules
+- Syncs the Go workspace
+- Verifies all modules
+
+### OpenTelemetry Collector Versions
+
+**Why OTel has two version series:**
+
+OpenTelemetry Collector publishes two version series in each release:
+- **Stable API** (v1.x) — backward compatible core interfaces (`component`, `pdata`, `consumer`)
+- **Experimental API** (v0.x) — may break between releases, helpers & new features (`componenttest`, `processorhelper`, `config/*`)
+
+Each release publishes **both versions together**:
+- v0.151.0 release (April 2025): `v1.57.0` (stable) + `v0.151.0` (experimental)
+- v0.152.0 release (May 2025): `v1.58.0` (stable) + `v0.152.0` (experimental)
+
+**How we handle it:**
+
+- **OTel versions are constrained by contrib package availability** — we pin to versions where all contrib packages exist
+- `task dev:deps:update` **excludes OTel packages** — they are updated manually after verifying contrib compatibility
+- `task version:sync` propagates pinned OTel versions to all modules, Containerfiles, and CI configs
+
+**Current version:** v1.58.0 (stable) + v0.152.0 (experimental)
+
+**Why the constraint?** Contrib packages (used in `beacon-distro/manifest.yaml`) release 1-2 versions behind the main collector packages. Blindly upgrading to the latest OTel version causes build failures when contrib packages don't exist yet.
+
+### How to Upgrade OpenTelemetry Collector
+
+**Important:** OTel packages are **not** upgraded automatically by `task dev:deps:update`. Follow this process:
+
+**Step 1: Check latest contrib release**
+
+Visit the [contrib releases page](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases) and note the latest version (e.g., `v0.152.0`).
+
+**Step 2: Identify required OTel version**
+
+Check a contrib package's `go.mod` to see what OTel version it requires:
+
+```bash
+go mod download -json github.com/open-telemetry/opentelemetry-collector-contrib/connector/signaltometricsconnector@v0.152.0 | \
+  jq -r '.GoMod' | xargs cat | grep 'go.opentelemetry.io/collector/component'
+```
+
+This will show something like `go.opentelemetry.io/collector/component v1.58.0` — that's your target stable version.
+
+**Step 3: Update truthbeam**
+
+```bash
+cd truthbeam
+go get go.opentelemetry.io/collector/component@v1.58.0 \
+      go.opentelemetry.io/collector/consumer@v1.58.0 \
+      go.opentelemetry.io/collector/pdata@v1.58.0 \
+      go.opentelemetry.io/collector/processor@v1.58.0 \
+      go.opentelemetry.io/collector/component/componenttest@v0.152.0 \
+      go.opentelemetry.io/collector/config/confighttp@v0.152.0 \
+      go.opentelemetry.io/collector/processor/processorhelper@v0.152.0 \
+      go.opentelemetry.io/collector/processor/processortest@v0.152.0
+go mod tidy
+cd ..
+```
+
+**Step 4: Propagate across the project**
+
+```bash
+task version:sync
+```
+
+This syncs the versions to all workspace modules, Containerfiles, and CI configs.
+
+**Step 5: Verify**
+
+```bash
+task test
+task integration:test
+```
+
+### Troubleshooting Version Conflicts
+
+**Error: `unknown revision v0.XXX.0`**
+
+The OTel version doesn't exist yet. Check the [releases page](https://github.com/open-telemetry/opentelemetry-collector/releases) for the latest available version.
+
+**Error: dependency conflicts after `go get -u`**
+
+You've mixed stable/experimental versions from different releases. Reset to the pinned versions:
+
+```bash
+cd truthbeam
+# Downgrade to current pinned versions
+go get go.opentelemetry.io/collector/component@v1.57.0 \
+       go.opentelemetry.io/collector/component/componenttest@v0.151.0
+go mod tidy
+cd ..
+task version:sync
+```
+
 ## Project Structure
 
 ```
@@ -129,9 +238,15 @@ complybeacon/
 ├── beacon-distro/              # OpenTelemetry Collector distribution
 │   ├── config.yaml            # Collector configuration
 │   └── Containerfile.collector # Container definition
-├── hack/                       # Development utilities
-│   ├── demo/                  # Demo configurations
-│   ├── sampledata/            # Sample data for testing
+├── configs/                    # Deployment configs (collector, Loki)
+│   ├── collector-base.yaml    # Base layer: OCSF transform + Loki
+│   ├── collector-storage.yaml # Storage layer: adds S3 export
+│   ├── collector-enrichment.yaml # Enrichment layer: adds TruthBeam
+│   └── loki.yaml              # Loki configuration
+├── certs/                      # TLS certificate generation
+├── deploy/                     # Deployment infrastructure (Terraform)
+├── tests/                      # Test infrastructure
+│   └── integration/           # E2E Ginkgo tests, mock Compass, fixtures
 └── bin/                        # Built binaries (created by task infra:deploy)
 ```
 
@@ -156,28 +271,35 @@ cd truthbeam && go test -v ./...
 
 ### Integration Testing
 
-The project includes integration tests using the demo environment:
+The project includes automated integration tests using [Ginkgo](https://onsi.github.io/ginkgo/) that validate the evidence pipeline at three deployment layers:
+
+| Layer      | Profile      | What it tests                         |
+|------------|--------------|---------------------------------------|
+| Base       | *(default)*  | OCSF transform + Loki export          |
+| Storage    | `storage`    | S3 evidence export + partitioning     |
+| Enrichment | `enrichment` | TruthBeam enrichment via mock Compass |
+
+**Prerequisites:**
+- Podman and podman-compose
+- Go 1.26+ (Ginkgo CLI is managed via `tool` directive in root `go.mod`)
+
+**Run all layers:**
 
 ```bash
-# Start the demo environment (builds images and starts services)
-task deploy
-
-# Or run in background
-podman-compose -f compose.yaml up -d
-
-# Test the pipeline
-curl -X POST http://localhost:8088/eventsource/receiver \
-  -H "Content-Type: application/json" \
-  -d @hack/sampledata/evidence.json
-
-# View logs
-podman-compose -f compose.yaml logs -f
-
-# Stop the environment
-task infra:undeploy
-
-# Check logs in Grafana at http://localhost:3000
+task integration:test
 ```
+
+**Run a single layer:**
+
+```bash
+task integration:test-profile PROFILE=base
+task integration:test-profile PROFILE=storage
+task integration:test-profile PROFILE=enrichment
+```
+
+Each run builds the collector image, starts the appropriate services, runs the matching Ginkgo test suite (filtered by label), and tears down. Certificates are generated automatically if missing. Test output is written to `.test-output/integration/`.
+
+For details on test cases, fixtures, and mock Compass configuration, see [tests/integration/README.md](../tests/integration/README.md).
 
 ## Component Development
 
@@ -268,7 +390,7 @@ podman build --no-cache -f beacon-distro/Containerfile.collector -t complybeacon
 podman run --rm complybeacon-collector --config /etc/otelcol-beacon/config.yaml
 
 # Full stack deployment for integration testing
-task deploy
+task infra:deploy
 ```
 
 ## Debugging and Troubleshooting
@@ -330,10 +452,18 @@ task codegen:weaver-codegen
 
 The demo environment orchestrates multiple containers (Grafana, Loki, Beacon Collector, Compass).
 
-1. **Start the full stack:**
+1. **Generate self-signed certificate**
+
+Since compass and truthbeam enable TLS by default, first generate self-signed certificates for testing/development:
+
+```bash
+task infra:generate-self-signed-cert
+```
+
+2. **Start the full stack:**
 ```bash
 # Interactive mode (shows logs in terminal)
-task infra:deploy
+task deploy
 
 # Or background/detached mode
 podman-compose -f compose.yaml up -d
@@ -344,18 +474,18 @@ This automatically:
 - Builds the beacon collector image
 - Starts all services (Grafana, Loki, Collector)
 
-2. **Test the pipeline:**
+3. **Test the pipeline:**
 ```bash
 curl -X POST http://localhost:8088/eventsource/receiver \
   -H "Content-Type: application/json" \
-  -d @hack/sampledata/evidence.json
+  -d @tests/integration/fixtures/evidence-fail.json
 ```
 
-3. **View results:**
+4. **View results:**
 - Grafana: <http://localhost:3000>
 - View logs: `podman-compose -f compose.yaml logs -f`
 
-4. **Stop the stack:**
+5. **Stop the stack:**
 ```bash
 task infra:undeploy
 ```

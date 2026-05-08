@@ -1,0 +1,8 @@
+# External Tool Checksums
+# Format: <tool>/<version>/<platform>/<filename>: <sha256>
+
+# Weaver v0.21.2  
+weaver/v0.21.2/linux/x86_64/weaver-x86_64-unknown-linux-gnu.tar.xz: b219f2de44ea3667c28356cd4860084983d146b694342a4ee52f349b38e7389f
+
+# Add new tools here following the same pattern
+# Format: tool_name/version/platform/architecture/filename: sha256_hash

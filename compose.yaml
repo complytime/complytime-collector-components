@@ -5,11 +5,12 @@ services:
     ports:
       - "3100:3100"
     volumes:
-      - ./hack/demo/loki-config.yaml:/etc/loki/local-config.yaml:Z
+      - ./configs/loki.yaml:/etc/loki/local-config.yaml:z
     command: -config.file=/etc/loki/local-config.yaml
 
   grafana:
     image: "docker.io/grafana/grafana:11.6.0"
+    profiles: [debug]
     environment:
       - GF_FEATURE_TOGGLES_ENABLE=grafanaManagedRecordingRules
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
@@ -38,7 +39,8 @@ services:
         /run.sh
 
   rustfs:
-    image: "docker.io/rustfs/rustfs:latest"
+    image: "docker.io/rustfs/rustfs@sha256:d441111efe3af5bbd6e29eba7cd124f96bb7d49a0612390907f9216d5f970382" # v1.0.0-beta.3
+    profiles: [storage]
     environment:
       - RUSTFS_ACCESS_KEY=${AWS_ACCESS_KEY_ID:-rustfsadmin}
       - RUSTFS_SECRET_KEY=${AWS_SECRET_ACCESS_KEY:-rustfsadmin}
@@ -49,13 +51,36 @@ services:
       - rustfs-data:/data
       - rustfs-logs:/logs
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:9000/minio/health/live"]
+      test: ["CMD", "curl", "-sf", "http://localhost:9000/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  rustfs-tls:
+    image: "docker.io/rustfs/rustfs@sha256:d441111efe3af5bbd6e29eba7cd124f96bb7d49a0612390907f9216d5f970382" # v1.0.0-beta.3
+    profiles: [storage-tls]
+    environment:
+      - RUSTFS_ACCESS_KEY=${AWS_ACCESS_KEY_ID:-rustfsadmin}
+      - RUSTFS_SECRET_KEY=${AWS_SECRET_ACCESS_KEY:-rustfsadmin}
+      - RUSTFS_CERT_FILE=/certs/rustfs.crt
+      - RUSTFS_CERT_KEY_FILE=/certs/rustfs.key
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - rustfs-data:/data
+      - rustfs-logs:/logs
+      - ./certs:/certs:z
+    healthcheck:
+      test:
+        ["CMD", "curl", "-sf", "https://localhost:9000/health", "--insecure"]
       interval: 5s
       timeout: 3s
       retries: 5
 
   rustfs-init:
-    image: "docker.io/rustfs/rc:latest"
+    image: "docker.io/rustfs/rc@sha256:ca85fbee9f96425446915cb08b41d5e246c782eeb3f6a00d3b8294fce5219891"
+    profiles: [storage]
     depends_on:
       - rustfs
     entrypoint: ["/bin/sh", "-c"]
@@ -66,18 +91,58 @@ services:
           sleep 2
         done
         rc mb --ignore-existing local/$$S3_BUCKETNAME
+        # SECURITY: Limited anonymous access for integration tests only
+        # RustFS test bucket configured with anonymous public access so
+        # tests can query S3 ListObjectsV2 via plain HTTP
+        rc anonymous set public local/$$S3_BUCKETNAME
     environment:
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-rustfsadmin}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-rustfsadmin}
       - S3_BUCKETNAME=${S3_BUCKETNAME:-complybeacon-evidence}
     restart: "no"
 
+  rustfs-init-tls:
+    image: "docker.io/rustfs/rc@sha256:ca85fbee9f96425446915cb08b41d5e246c782eeb3f6a00d3b8294fce5219891"
+    profiles: [storage-tls]
+    depends_on:
+      - rustfs-tls
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        # Wait for TLS endpoint
+        until rc alias set local https://rustfs-tls:9000 $$AWS_ACCESS_KEY_ID $$AWS_SECRET_ACCESS_KEY --insecure 2>/dev/null; do
+          echo "waiting for rustfs-tls..."
+          sleep 2
+        done
+        rc mb --ignore-existing local/$$S3_BUCKETNAME --insecure
+        # NO ANONYMOUS ACCESS: TLS tests use authenticated rc client calls
+        echo "TLS bucket configured with authenticated access only"
+    environment:
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-rustfsadmin}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-rustfsadmin}
+      - S3_BUCKETNAME=${S3_BUCKETNAME:-complybeacon-evidence}
+    restart: "no"
+
+  compass:
+    build:
+      context: ./tests/integration/mock-compass
+      dockerfile: Containerfile
+    profiles: [enrichment]
+    volumes:
+      - ./tests/integration/fixtures/compass-responses.json:/fixtures/compass-responses.json:z
+      - ./certs:/certs:z
+    ports:
+      - "8081:8081"
+    healthcheck:
+      test: ["CMD", "/mock-compass", "-healthcheck"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   collector:
     build:
-      context: ./beacon-distro
-      dockerfile: Containerfile.collector
-    depends_on:
-      - rustfs-init
+      context: .
+      dockerfile: beacon-distro/Containerfile.collector
     environment:
       - AWS_REGION=${AWS_REGION:-us-east-1}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-rustfsadmin}
@@ -85,11 +150,36 @@ services:
       - S3_BUCKETNAME=${S3_BUCKETNAME:-complybeacon-evidence}
       - S3_OBJ_DIR=${S3_OBJ_DIR:-evidence}
       - S3_ENDPOINT=${S3_ENDPOINT:-http://rustfs:9000}
+      - S3_DISABLE_SSL=${S3_DISABLE_SSL:-true}
     restart: unless-stopped
     command: ["--config=/etc/otel-collector.yaml"]
     volumes:
-      - ./hack/demo/demo-config.yaml:/etc/otel-collector.yaml:Z
-      - ./data:/data:Z
+      - ./${COLLECTOR_CONFIG:-configs/collector-base.yaml}:/etc/otel-collector.yaml:z
+      - ./data:/data:z,U
+      - ./certs:/certs:z
+    ports:
+      - "4317:4317"
+      - "8088:8088"
+
+  collector-tls:
+    build:
+      context: .
+      dockerfile: beacon-distro/Containerfile.collector
+    profiles: [storage-tls]
+    environment:
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-rustfsadmin}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-rustfsadmin}
+      - S3_BUCKETNAME=${S3_BUCKETNAME:-complybeacon-evidence}
+      - S3_OBJ_DIR=${S3_OBJ_DIR:-evidence}
+      - S3_ENDPOINT=${S3_ENDPOINT:-https://rustfs-tls:9000}
+      - S3_DISABLE_SSL=${S3_DISABLE_SSL:-false}
+    restart: unless-stopped
+    command: ["--config=/etc/otel-collector.yaml"]
+    volumes:
+      - ./${COLLECTOR_CONFIG:-configs/collector-storage-tls.yaml}:/etc/otel-collector.yaml:z
+      - ./data:/data:z,U
+      - ./certs:/certs:z
     ports:
       - "4317:4317"
       - "8088:8088"

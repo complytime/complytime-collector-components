@@ -1,20 +1,24 @@
 # Version Synchronization Check
 # =============================
-# Ensures beacon-distro manifest.yaml stays in sync with truthbeam OTel versions
+# Ensures Go and OTel versions are aligned across all modules,
+# Containerfiles, manifest, and CI workflows.
 
 name: Version Sync Check
 
 on:
   pull_request:
     paths:
-      - 'truthbeam/go.mod'
-      - 'beacon-distro/manifest.yaml'
-      - 'beacon-distro/Containerfile.collector'
+      - "go.work"
+      - "**/go.mod"
+      - "beacon-distro/manifest.yaml"
+      - "beacon-distro/Containerfile.collector"
+      - "tests/integration/mock-compass/Containerfile"
   push:
     branches: [main]
     paths:
-      - 'truthbeam/go.mod'
-      - 'beacon-distro/manifest.yaml'
+      - "go.work"
+      - "**/go.mod"
+      - "beacon-distro/manifest.yaml"
 
 # Minimal permissions at workflow level
 permissions:
@@ -32,23 +36,5 @@ jobs:
           version: 3.x
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Check Go version alignment
-        run: task version:check-go-version
-
-      - name: Check OTel version alignment
-        run: task version:check-otel-versions
-
-      - name: Verify manifest can be synced
-        run: |
-          # Run sync in dry-run mode (save original first)
-          cp beacon-distro/manifest.yaml /tmp/manifest.yaml.orig
-          task version:sync-otel-versions
-
-          # Check if there are differences
-          if ! diff -q beacon-distro/manifest.yaml /tmp/manifest.yaml.orig; then
-            echo "ERROR: manifest.yaml is out of sync with truthbeam"
-            echo "Run 'task version:sync-otel-versions' locally and commit the changes"
-            exit 1
-          fi
-
-          echo "✓ manifest.yaml is in sync"
+      - name: Check version alignment
+        run: task version:check

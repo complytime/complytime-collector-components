@@ -2,8 +2,11 @@
 extends: default
 
 # https://yamllint.readthedocs.io/en/stable/rules.html
+ignore-from-file: .gitignore
+
 rules:
   comments: disable
+  braces: disable
   document-start: disable
   empty-lines:
     level: warning
