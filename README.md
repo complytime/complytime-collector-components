@@ -30,6 +30,74 @@ A custom OpenTelemetry Collector processor that enriches log records with compli
 
 A central enrichment service that provides risk, threat, and compliance framework attributes based on policy lookup data. Compass is maintained as a separate project at [gemara-content-service](https://github.com/complytime/gemara-content-service) and is consumed here as a pre-built container image (`ghcr.io/complytime/gemara-content-service`).
 
+### How It All Fits Together
+
+```mermaid
+graph TB
+    OPA["OPA"] --> NORM
+    GK["Gatekeeper"] --> NORM
+    CF["Conforma"] --> NORM
+    SEN["Sentinel"] --> NORM
+
+    subgraph pw ["ProofWatch - Instrumentation Library"]
+        NORM["Normalize Evidence<br/>OCSF / Gemara"] --> EMIT["Emit OTLP<br/>Logs + Metrics"]
+    end
+
+    EMIT -- "OTLP" --> OTLPRX
+    EMIT -- "OTLP" --> WHRX
+
+    subgraph beacon ["Beacon - OTel Collector Distribution"]
+        OTLPRX["OTLP Receiver"] --> BATCH
+        WHRX["Webhook Receiver"] --> BATCH
+        FLRX["FileLog Receiver"] --> BATCH
+
+        BATCH["Batch"] --> XFORM["Transform<br/>OCSF parse"]
+        XFORM --> TBPROC["TruthBeam<br/>Enrich"]
+
+        TBPROC --> S2M["SignalToMetrics"]
+        TBPROC --> DBG["Debug"]
+        TBPROC --> OTLPEX["OTLP/HTTP Exporter"]
+        TBPROC --> S3EX["S3 Exporter"]
+        S2M --> FILEEX["File Exporter"]
+    end
+
+    subgraph compass ["Compass - Enrichment Service"]
+        CAT[("Compliance<br/>Catalogs")] --- LOOKUP["Policy-to-Control<br/>Lookup"]
+    end
+
+    TBPROC -. "enrichment<br/>request" .-> LOOKUP
+    LOOKUP -. "controls, frameworks<br/>risk, remediation" .-> TBPROC
+
+    OTLPEX --> LOKI
+    S3EX --> S3STORE
+
+    subgraph outputs ["Downstream Systems"]
+        LOKI[("Loki")] --> GRAF["Grafana"]
+        S3STORE[("S3 Archive")] --> HP["Hyperproof"]
+    end
+
+    classDef sourceNode fill:#6366f1,stroke:#4338ca,color:#fff
+    classDef pwNode fill:#8b5cf6,stroke:#6d28d9,color:#fff
+    classDef beaconNode fill:#0ea5e9,stroke:#0284c7,color:#fff
+    classDef procNode fill:#d97706,stroke:#b45309,color:#fff
+    classDef compassNode fill:#f97316,stroke:#c2410c,color:#fff
+    classDef outputNode fill:#64748b,stroke:#334155,color:#fff
+    classDef catNode fill:#fbbf24,stroke:#b45309,color:#333
+
+    class OPA,GK,CF,SEN sourceNode
+    class NORM,EMIT pwNode
+    class OTLPRX,WHRX,FLRX,BATCH,XFORM,TBPROC,S2M beaconNode
+    class DBG,OTLPEX,S3EX,FILEEX procNode
+    class LOOKUP compassNode
+    class CAT catNode
+    class LOKI,S3STORE,GRAF,HP outputNode
+
+    style pw fill:#f5f3ff,stroke:#8b5cf6,stroke-width:2px
+    style beacon fill:#f0f9ff,stroke:#0ea5e9,stroke-width:2px
+    style compass fill:#fff7ed,stroke:#f97316,stroke-width:2px
+    style outputs fill:#f1f5f9,stroke:#64748b,stroke-width:2px
+```
+
 ## Quick Start
 
 Before Deploying: Please read the following **NOTE**.
@@ -120,6 +188,18 @@ Once you've reviewed the **NOTE** above, follow these steps to deploy the infras
    
 3. **Enable grafana dashboard:**
     If you want to configure loki as default datasource on grafana and enable pre-build grafana dashboard, refer to [README.md](./hack/demo/terraform/README.md)
+
+## Version Maintenance
+
+After Dependabot updates OpenTelemetry Collector dependencies in `truthbeam/go.mod`, sync the beacon-distro manifest:
+
+```bash
+make sync-otel-versions
+git add beacon-distro/
+git commit -m "chore: sync beacon-distro with truthbeam OTel versions"
+```
+
+CI will block PRs if versions drift between `truthbeam` and `beacon-distro`.
 
 ## Project Design
 

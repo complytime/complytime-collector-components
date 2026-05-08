@@ -1,0 +1,66 @@
+# Go Compatibility Check
+# =====================
+# Weekly build of beacon-distro with both the pinned Go version and
+# golang:latest to detect forward-compatibility regressions early.
+
+name: Go Compatibility Check
+
+on:
+  schedule:
+    # Monday 06:00 UTC — weekly forward-compat test
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+# Minimal permissions at workflow level; jobs declare what they need
+permissions:
+  contents: none
+  actions: none
+
+concurrency:
+  group: go-compat-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  beacon-distro-build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: pinned
+            go-override: ""
+          - label: latest
+            go-override: "golang:latest"
+    name: "beacon-distro (${{ matrix.label }})"
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Override Go version in Containerfile
+        if: matrix.go-override != ''
+        env:
+          GO_OVERRIDE: ${{ matrix.go-override }}
+        run: |
+          sed -i "s|FROM golang:[^ ]* AS build-stage|FROM ${GO_OVERRIDE} AS build-stage|" \
+            beacon-distro/Containerfile.collector
+          if ! grep -q "FROM ${GO_OVERRIDE} AS build-stage" beacon-distro/Containerfile.collector; then
+            echo "ERROR: sed substitution did not match. Containerfile format may have changed."
+            exit 1
+          fi
+          echo "Overrode Go image to: ${GO_OVERRIDE}"
+
+      - name: Build beacon-distro
+        env:
+          BUILD_LABEL: ${{ matrix.label }}
+        run: |
+          podman build \
+            -f beacon-distro/Containerfile.collector \
+            -t "complybeacon-compat-test:${BUILD_LABEL}" \
+            beacon-distro/
+
+      - name: Clean up image
+        if: always()
+        env:
+          BUILD_LABEL: ${{ matrix.label }}
+        run: podman rmi "complybeacon-compat-test:${BUILD_LABEL}" || true

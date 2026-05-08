@@ -31,18 +31,18 @@ all: test
 # ------------------------------------------------------------------------------
 # Test Target
 # ------------------------------------------------------------------------------
-test: ## Runs unit tests with coverage for every module in the monorepo.
+test: check-go-version check-go-mod-consistency check-otel-versions ## Runs unit tests with coverage and version checks for every module
 	@for m in $(MODULES); do \
 		echo "========================================================================================================="; \
 		echo "Running tests for $$m..."; \
 		echo "========================================================================================================="; \
-		(cd $$m && go test -v -coverprofile=coverage.out -covermode=atomic ./...); \
+		(cd $$m && GOWORK=off go test -v -coverprofile=coverage.out -covermode=atomic ./...); \
 		if [ $$? -ne 0 ]; then \
 			echo "Tests failed for module: $$m"; \
 			exit 1; \
 		fi; \
 		echo "Coverage summary for $$m:"; \
-		(cd $$m && go tool cover -func=coverage.out | tail -n1) || true; \
+		(cd $$m && GOWORK=off go tool cover -func=coverage.out | tail -n1) || true; \
 		echo "-------------------"; \
 	done
 	@echo "--- All tests passed! ---"
@@ -51,7 +51,7 @@ test: ## Runs unit tests with coverage for every module in the monorepo.
 test-race: ## Runs tests with race detection
 	@for m in $(MODULES); do \
 		echo "Running tests with race detection for $$m..."; \
-		(cd $$m && go test -v -race ./...); \
+		(cd $$m && GOWORK=off go test -v -race ./...); \
 		if [ $$? -ne 0 ]; then \
 			echo "Tests failed for module: $$m"; \
 			exit 1; \
@@ -63,10 +63,12 @@ test-race: ## Runs tests with race detection
 # ------------------------------------------------------------------------------
 # Dependencies for all modules
 # ------------------------------------------------------------------------------
-deps: ## Tidy, verify, download, and vendor deps for all modules
+deps: workspace ## Tidy, verify, and download deps for all modules (workspace-aware)
+	@echo "Syncing workspace..."
+	@go work sync
 	@for m in $(MODULES); do \
 		echo "Processing deps for $$m..."; \
-		(cd $$m && go mod tidy && go mod verify && go mod download && go mod vendor); \
+		(cd $$m && go mod tidy && go mod verify && go mod download); \
 		if [ $$? -ne 0 ]; then \
 			echo "Deps failed for module: $$m"; \
 			exit 1; \
@@ -77,11 +79,11 @@ deps: ## Tidy, verify, download, and vendor deps for all modules
 .PHONY: deps
 
 coverage-report: test ## Generate HTML coverage report and show summary
-	@for m in $(MODULES); do \
+		@test -f go.work || go work init; go work use $(MODULES)
 		echo "Generating coverage report for $$m..."; \
-		(cd $$m && go tool cover -html=coverage.out -o coverage.html); \
+		(cd $$m && GOWORK=off go tool cover -html=coverage.out -o coverage.html); \
 		echo "Coverage summary for $$m:"; \
-		(cd $$m && go tool cover -func=coverage.out | tail -n1) || true; \
+		(cd $$m && GOWORK=off go tool cover -func=coverage.out | tail -n1) || true; \
 		echo "-------------------"; \
 	done
 	@echo "--- Coverage reports generated! ---"
@@ -96,7 +98,7 @@ clean: ## Removes all generated binaries and Go build caches.
 .PHONY: clean
 
 workspace: # Setup a go workspace with all modules
-		@go work init && go work use $(MODULES)
+		@test -f go.work || go work init && go work use $(MODULES)
 .PHONY: workspace
 
 #------------------------------------------------------------------------------
@@ -126,7 +128,7 @@ generate-self-signed-cert: ## Generate self-signed certificates for compass (ext
 	@echo "--- Certificates generated successfully ---"
 .PHONY: generate-self-signed-cert
 
-deploy: ## Deploy infra
+deploy: sync-otel-versions ## Deploy infra (auto-syncs OTel versions first)
 	podman-compose -f compose.yaml up
 .PHONY: deploy
 
@@ -202,6 +204,32 @@ golangci-lint: ## Runs golangci-lint for all modules
 	done
 	@echo "--- All linting passed! ---"
 .PHONY: golangci-lint
+
+#------------------------------------------------------------------------------
+# Version Drift Check
+#------------------------------------------------------------------------------
+
+CONTAINERFILE := beacon-distro/Containerfile.collector
+
+check-go-version: ## Check that Containerfile Go version satisfies all module requirements
+	@bash scripts/check-go-version.sh
+.PHONY: check-go-version
+
+check-otel-versions: ## Check that manifest.yaml OTel versions align with truthbeam
+	@bash scripts/check-otel-versions.sh
+.PHONY: check-otel-versions
+
+check-go-mod-consistency: ## Check that OTel dependencies within each go.mod are consistent
+	@bash scripts/check-go-mod-consistency.sh
+.PHONY: check-go-mod-consistency
+
+sync-otel-versions: ## Sync manifest.yaml OTel versions from truthbeam (idiomatic Go way)
+	@bash scripts/sync-manifest-versions.sh
+.PHONY: sync-otel-versions
+
+sync-all-otel-versions: ## Sync all OTel versions to highest found across all modules
+	@bash scripts/sync-all-otel-versions.sh
+.PHONY: sync-all-otel-versions
 
 #------------------------------------------------------------------------------
 # CRAP Load Monitoring

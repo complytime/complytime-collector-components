@@ -1,0 +1,48 @@
+# Version Synchronization Check
+# =============================
+# Ensures beacon-distro manifest.yaml stays in sync with truthbeam OTel versions
+
+name: Version Sync Check
+
+on:
+  pull_request:
+    paths:
+      - 'truthbeam/go.mod'
+      - 'beacon-distro/manifest.yaml'
+      - 'beacon-distro/Containerfile.collector'
+  push:
+    branches: [main]
+    paths:
+      - 'truthbeam/go.mod'
+      - 'beacon-distro/manifest.yaml'
+
+# Minimal permissions at workflow level
+permissions:
+  contents: read
+
+jobs:
+  check-version-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Check Go version alignment
+        run: make check-go-version
+
+      - name: Check OTel version alignment
+        run: make check-otel-versions
+
+      - name: Verify manifest can be synced
+        run: |
+          # Run sync in dry-run mode (save original first)
+          cp beacon-distro/manifest.yaml /tmp/manifest.yaml.orig
+          make sync-otel-versions
+
+          # Check if there are differences
+          if ! diff -q beacon-distro/manifest.yaml /tmp/manifest.yaml.orig; then
+            echo "ERROR: manifest.yaml is out of sync with truthbeam"
+            echo "Run 'make sync-otel-versions' locally and commit the changes"
+            exit 1
+          fi
+
+          echo "✓ manifest.yaml is in sync"
