@@ -38,3 +38,30 @@ data/
 hack/self-signed-cert/compass*
 hack/self-signed-cert/truthbeam*
 
+# Unbound Force — managed by uf init
+# Runtime data under .uf/ (databases, caches, locks, logs)
+.uf/workflows/
+.uf/artifacts/
+.uf/dewey/graph.db
+.uf/dewey/graph.db-shm
+.uf/dewey/graph.db-wal
+.uf/dewey/*.lock
+.uf/dewey/cache/
+.uf/dewey/dewey.log
+.uf/replicator/*.db
+.uf/replicator/*.db-shm
+.uf/replicator/*.db-wal
+.uf/replicator/*.lock
+.uf/muti-mind/artifacts/
+.uf/mx-f/data/
+# Legacy tool directories (renamed to .uf/ in Spec 025)
+.dewey/
+.hive/
+.unbound-force/
+.muti-mind/
+.mx-f/
+# Unbound Force convention packs not applicable to this repository
+.opencode/uf/packs/typescript.md
+.opencode/uf/packs/typescript-custom.md
+# MegaLinter generated reports
+megalinter-reports/

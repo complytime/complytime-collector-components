@@ -1,5 +1,7 @@
 # ComplyBeacon
 
+## Project Overview
+
 ComplyBeacon is an open-source observability toolkit that collects,
 normalizes, and enriches compliance evidence by extending the
 OpenTelemetry (OTEL) standard. It bridges raw policy scanner output

@@ -1,0 +1,13 @@
+# .uf/config.yaml
+# Workflow configuration for Unbound Force hero lifecycle.
+# CLI flags (--define-mode, --spec-review) override these defaults.
+
+# workflow:
+#   execution_modes:
+#     define: swarm      # "human" (default) or "swarm"
+#     implement: swarm   # default: swarm
+#     validate: swarm    # default: swarm
+#     review: swarm      # default: swarm
+#     accept: human      # default: human
+#     reflect: swarm     # default: swarm
+#   spec_review: false   # enable spec review checkpoint (default: false)
