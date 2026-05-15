@@ -7,7 +7,7 @@ toolchain go1.25.9
 tool github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen
 
 require (
-	github.com/gemaraproj/go-gemara v0.4.0
+	github.com/gemaraproj/go-gemara v0.5.0
 	github.com/maypok86/otter/v2 v2.3.0
 	github.com/oapi-codegen/runtime v1.4.0
 	github.com/stretchr/testify v1.11.1
