@@ -6,7 +6,7 @@ toolchain go1.25.9
 
 require (
 	github.com/Santiago-Labs/go-ocsf v0.1.1-0.20250729170529-8b19b43949a6
-	github.com/gemaraproj/go-gemara v0.4.0
+	github.com/gemaraproj/go-gemara v0.5.0
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/collector/pdata v1.57.0
 	go.opentelemetry.io/otel v1.43.0
