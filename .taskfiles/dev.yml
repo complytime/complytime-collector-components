@@ -81,3 +81,10 @@ tasks:
       - task: mega-lint
         vars:
           APPLY_FIXES: "all"
+
+  release-prep:
+    desc: "Validate release readiness (VERSION=x.y.z, e.g. task dev:release-prep VERSION=0.1.0)"
+    requires:
+      vars: [VERSION]
+    cmds:
+      - bash {{.ROOT_DIR}}/.taskfiles/scripts/release-prep.sh {{.VERSION}}

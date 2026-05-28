@@ -6,7 +6,7 @@ This guide explains how to publish in GHCR and promote in Quay for container ima
 
 The publishing process values **security and automation** to provide predictable, low-cost image releases.
 
-```
+```text
 Main Branch Push  →  Build + Scan + Sign  →  GHCR (sha-<commit>)
                                               ↓
 Release Tag (v*)  →  Verify + Promote     →  Quay.io (v1.2.3)
@@ -23,7 +23,7 @@ PR from Org Member  →  Build + Scan + Sign  →  GHCR (dev-pr<number>)
 
 ## Main Branch Pipeline (Scan Source → Build → Scan Image → Sign)
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────────┐
 │                              MAIN BRANCH PUSH                                   │
 └─────────────────────────────────────────────────────────────────────────────────┘
@@ -104,7 +104,7 @@ PR from Org Member  →  Build + Scan + Sign  →  GHCR (dev-pr<number>)
 
 For pull requests from organization members, the same security pipeline runs to validate Containerfile changes before merge.
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────────┐
 │                       PULL REQUEST (from org member)                            │
 └─────────────────────────────────────────────────────────────────────────────────┘
@@ -149,7 +149,7 @@ For pull requests from organization members, the same security pipeline runs to 
 
 ## Release Pipeline (Promote to Production)
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────────┐
 │                        RELEASE TAG PUSH (v1.2.3)                                │
 └─────────────────────────────────────────────────────────────────────────────────┘
@@ -249,16 +249,74 @@ Promotion copies signed images from GHCR to Quay.io for public distribution.
 
 > **Key Point:** Promotion does **not rebuild** the image. It uses `cosign copy` to transfer the exact same bytes (identical `sha256` digest) from GHCR to Quay, preserving all signatures and attestations. This guarantees the image you tested in GHCR is identical to what's released on Quay.
 
+### Pre-Release Checklist
+
+Before tagging a release, run through these steps to ensure everything is aligned.
+You can automate most of this with `task dev:release-prep`.
+
+1. **Verify CI is green on `main`.**
+   Check that the latest commit on `main` passed all CI checks (lint, test, version sync,
+   security scans) and that a signed image exists on GHCR for the HEAD commit.
+
+2. **Verify `proofwatch.Version()` matches the intended release version.**
+   The version constant lives in `proofwatch/proofwatch.go`. If the intended release is
+   `v0.2.0`, the function must return `"0.2.0"`. Update and merge before tagging.
+
+3. **Verify `IMAGE_VERSION` in the Containerfile matches the release version.**
+   The `ARG IMAGE_VERSION=` default in `beacon-distro/Containerfile.collector` must match
+   the release version (without the `v` prefix). `task release-prep` updates this
+   automatically. CI can also override it via `--build-arg IMAGE_VERSION=x.y.z`.
+
+4. **Verify `CHANGELOG.md` has an entry for this version.**
+   At minimum, include a summary of notable changes since the last release (or since
+   project inception for `v0.1.0`). Follow [Keep a Changelog](https://keepachangelog.com/)
+   format.
+
+5. **Verify dependency versions are aligned.**
+   Run `task version:check` to confirm Go and OTel dependency versions are consistent
+   across all modules, Containerfiles, CI workflows, and docs.
+
+6. **Run `task check` locally.**
+   This runs all quality gates (lint + test) against your local checkout.
+
 ### Creating a Release
 
+After the pre-release checklist passes:
+
 ```bash
-# Ensure your changes are merged to main and images are built
 git checkout main
 git pull origin main
+
+# Confirm the GHCR image exists for HEAD
+skopeo inspect docker://ghcr.io/complytime/complybeacon-beacon-distro:sha-$(git rev-parse --short HEAD)
 
 # Create a signed tag
 git tag -s v1.2.3 -m "Release v1.2.3"
 git push origin v1.2.3
+```
+
+Pushing the tag triggers `ci_publish_quay.yml`, which looks up the `sha-<commit>` image
+already on GHCR and promotes it to `quay.io/complytime/beacon-collector` with the version
+tag, `latest`, and SHA tags. No rebuild occurs -- the promoted image has the exact same
+`sha256` digest as the GHCR source.
+
+### Post-Release Verification
+
+After the Quay promotion workflow completes:
+
+```bash
+# Verify the image landed on Quay
+skopeo inspect docker://quay.io/complytime/beacon-collector:v1.2.3
+
+# Verify signature on the promoted image
+cosign verify quay.io/complytime/beacon-collector:v1.2.3 \
+  --certificate-identity-regexp='https://github.com/complytime/.*' \
+  --certificate-oidc-issuer=https://token.actions.githubusercontent.com
+
+# Confirm digests match between GHCR source and Quay destination
+GHCR_DIGEST=$(skopeo inspect docker://ghcr.io/complytime/complybeacon-beacon-distro:sha-$(git rev-parse --short HEAD) --format "{{.Digest}}")
+QUAY_DIGEST=$(skopeo inspect docker://quay.io/complytime/beacon-collector:v1.2.3 --format "{{.Digest}}")
+[ "$GHCR_DIGEST" = "$QUAY_DIGEST" ] && echo "Digests match" || echo "MISMATCH - investigate"
 ```
 
 ### Release Cadence
@@ -433,10 +491,10 @@ skopeo inspect docker://ghcr.io/complytime/complybeacon-beacon-distro:sha-abc123
 
 ## Quick Reference
 
-| Task                                 | Workflow                                                          | Trigger                   | Tags                             |
-|--------------------------------------|-------------------------------------------------------------------|---------------------------|----------------------------------|
-| Build & publish to GHCR (production) | [`ci_publish_ghcr.yml`](../.github/workflows/ci_publish_ghcr.yml) | Push to `main` (after CI) | `sha-<commit>`                   |
-| Build & publish to GHCR (dev)        | [`ci_publish_ghcr.yml`](../.github/workflows/ci_publish_ghcr.yml) | PR from org member        | `dev-pr<number>`, `sha-<commit>` |
+| Task                                 | Workflow                                                          | Trigger                   | Tags                               |
+|--------------------------------------|-------------------------------------------------------------------|---------------------------|------------------------------------|
+| Build & publish to GHCR (production) | [`ci_publish_ghcr.yml`](../.github/workflows/ci_publish_ghcr.yml) | Push to `main` (after CI) | `sha-<commit>`                     |
+| Build & publish to GHCR (dev)        | [`ci_publish_ghcr.yml`](../.github/workflows/ci_publish_ghcr.yml) | PR from org member        | `dev-pr<number>`, `sha-<commit>`   |
 | Promote to Quay.io                   | [`ci_publish_quay.yml`](../.github/workflows/ci_publish_quay.yml) | Push tag `v*.*.*`         | `v1.2.3`, `latest`, `sha-<commit>` |
 
 **Verification Commands:**

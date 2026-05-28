@@ -21,13 +21,17 @@ RUN --mount=type=cache,target=/root/.cache/go-build builder --config manifest.ya
 # Using UBI10 Micro (minimal runtime base, similar to distroless)
 FROM registry.access.redhat.com/ubi10/ubi-micro@sha256:1983e3d2fa54a1afedf015ad4d8f9cfaeed15182d9cf532e5cb35de2c1bda580
 
+# Image version — updated by `task release-prep`, overridable via --build-arg
+ARG IMAGE_VERSION=0.1.0
+
 # Metadata labels following OCI Image Format Specification
 # Consolidated into single LABEL instruction to minimize layers
 LABEL org.opencontainers.image.title="ComplyBeacon Collector" \
       org.opencontainers.image.description="OpenTelemetry collector distribution for compliance evidence collection" \
       org.opencontainers.image.vendor="ComplyTime" \
       org.opencontainers.image.source="https://github.com/complytime/complybeacon" \
-      org.opencontainers.image.licenses="Apache-2.0"
+      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.version="${IMAGE_VERSION}"
 
 # Run as non-root user for security
 # USER_UID can be overridden at build time if needed

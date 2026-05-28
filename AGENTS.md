@@ -76,6 +76,20 @@ All S3 environment variables have inline defaults that target rustfs. The stack 
 
 All commits MUST use Conventional Commits, the `-s` flag (Signed-off-by), and include an `Assisted-by` trailer when AI-assisted. See `.specify/memory/constitution.md` for full details.
 
+## Changelog
+
+`CHANGELOG.md` follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format. The audience is **users and adopting developers**, not contributors or CI.
+
+**Principles:**
+
+- Write entries that answer "what can I do now?" or "what changed for me?", not "what did we refactor internally?"
+- Group by component scope (`proofwatch`, `truthbeam`, `beacon-distro`) when an entry is module-specific
+- Use descriptive, multi-line entries that give enough context for someone unfamiliar with the codebase to understand the value — avoid terse one-liners that require reading source to interpret
+- Internal tooling changes (CI actions, linter upgrades, dependency bumps, code quality tooling) are **not** changelog entries unless they affect the user experience or public API
+- Do not use `BREAKING` labels until there is a prior release to break against
+- `Changed` and `Removed` sections only apply when a released feature is modified or dropped — pre-release iteration is not a "change"
+- Reference PR numbers only when they add traceability for significant features
+
 ## Integration Test Gotchas
 
 - **RustFS is not MinIO**: The health endpoint is `/health`, not `/minio/health/live` (returns 403). The S3 API is compatible but administrative endpoints differ. The `rustfs-init` container uses `rc` (RustFS CLI), not `mc` (MinIO client).

@@ -78,6 +78,13 @@ tasks:
     cmds:
       - task: infra:build
 
+  release-prep:
+    desc: "Validate release readiness (VERSION=x.y.z)"
+    cmds:
+      - task: dev:release-prep
+        vars:
+          VERSION: "{{.VERSION | default .CLI_ARGS}}"
+
   check:
     desc: Run all quality gates
     deps: [lint, test]
