@@ -46,7 +46,7 @@ jobs:
           go-version: "${{ env.GO_VERSION }}"
 
       - name: Install Task
-        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
+        uses: go-task/setup-task@70f2430ad412f838533de8c0515c749ffb2b8bd3 # v1
         with:
           version: 3.x
           repo-token: ${{ github.token }}
@@ -108,7 +108,7 @@ jobs:
           go-version: "${{ env.GO_VERSION }}"
 
       - name: Install Task
-        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
+        uses: go-task/setup-task@70f2430ad412f838533de8c0515c749ffb2b8bd3 # v1
         with:
           version: 3.x
           repo-token: ${{ github.token }}
@@ -138,7 +138,7 @@ jobs:
           go-version: "${{ env.GO_VERSION }}"
 
       - name: Install Task
-        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
+        uses: go-task/setup-task@70f2430ad412f838533de8c0515c749ffb2b8bd3 # v1
         with:
           version: 3.x
           repo-token: ${{ github.token }}
@@ -173,7 +173,7 @@ jobs:
           go-version: "${{ env.GO_VERSION }}"
 
       - name: Install Task
-        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
+        uses: go-task/setup-task@70f2430ad412f838533de8c0515c749ffb2b8bd3 # v1
         with:
           version: 3.x
           repo-token: ${{ github.token }}
@@ -252,7 +252,7 @@ jobs:
           go-version: "${{ env.GO_VERSION }}"
 
       - name: Install Task
-        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
+        uses: go-task/setup-task@70f2430ad412f838533de8c0515c749ffb2b8bd3 # v1
         with:
           version: 3.x
           repo-token: ${{ github.token }}

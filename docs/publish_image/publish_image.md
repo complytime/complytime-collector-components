@@ -166,9 +166,9 @@ For pull requests from organization members, the same security pipeline runs to 
   ║  │  │     ✓ Verify source signature                                 │  │  ║
   ║  │  │                                                               │  │  ║
   ║  │  │  3. cosign copy (preserves all signatures + attestations)     │  │  ║
-  ║  │  │     ghcr.io/org/image@sha256:... → quay.io/org/image:v1.2.3   │  │  ║
+  ║  │  │     ghcr.io/org/image → quay.io/complytime/beacon-collector    │  │  ║
   ║  │  │                                                               │  │  ║
-  ║  │  │  4. Apply semver tags: v1.2.3, sha-<full>, and sha-<short>    │  │  ║
+  ║  │  │  4. Apply tags: v1.2.3, latest, sha-<full>, sha-<short>      │  │  ║
   ║  │  │                                                               │  │  ║
   ║  │  │  5. Post-promotion verification (destination registry)        │  │  ║
   ║  │  └───────────────────────────────────────────────────────────────┘  │  ║
@@ -180,7 +180,8 @@ For pull requests from organization members, the same security pipeline runs to 
                                       ▼
                       ┌───────────────────────────────┐
                       │  ✅ Production Image Ready    │
-                      │  quay.io/org/image:v1.2.3    │
+                      │  quay.io/complytime/         │
+                      │    beacon-collector:v1.2.3   │
                       │  (all with preserved certs)  │
                       └───────────────────────────────┘
 ```
@@ -376,7 +377,7 @@ cosign verify ghcr.io/complytime/complybeacon-beacon-distro:dev-pr123 \
   --certificate-oidc-issuer=https://token.actions.githubusercontent.com
 
 # Verify Quay image (production release)
-cosign verify quay.io/continuouscompliance/complytime-beacon-distro:v1.2.3 \
+cosign verify quay.io/complytime/beacon-collector:v1.2.3 \
   --certificate-identity-regexp='https://github.com/complytime/.*' \
   --certificate-oidc-issuer=https://token.actions.githubusercontent.com
 ```
@@ -436,7 +437,7 @@ skopeo inspect docker://ghcr.io/complytime/complybeacon-beacon-distro:sha-abc123
 |--------------------------------------|-------------------------------------------------------------------|---------------------------|----------------------------------|
 | Build & publish to GHCR (production) | [`ci_publish_ghcr.yml`](../.github/workflows/ci_publish_ghcr.yml) | Push to `main` (after CI) | `sha-<commit>`                   |
 | Build & publish to GHCR (dev)        | [`ci_publish_ghcr.yml`](../.github/workflows/ci_publish_ghcr.yml) | PR from org member        | `dev-pr<number>`, `sha-<commit>` |
-| Promote to Quay.io                   | [`ci_publish_quay.yml`](../.github/workflows/ci_publish_quay.yml) | Push tag `v*.*.*`         | `v1.2.3`, `sha-<commit>`         |
+| Promote to Quay.io                   | [`ci_publish_quay.yml`](../.github/workflows/ci_publish_quay.yml) | Push tag `v*.*.*`         | `v1.2.3`, `latest`, `sha-<commit>` |
 
 **Verification Commands:**
 

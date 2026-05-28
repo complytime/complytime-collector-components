@@ -86,8 +86,10 @@ jobs:
       source_image: complytime/complybeacon-beacon-distro
       source_tag: ${{ needs.setup.outputs.source_tag }}
       dest_registry: quay.io
-      dest_image: continuouscompliance/complytime-beacon-distro
+      dest_image: complytime/beacon-collector
       dest_tag: ${{ needs.setup.outputs.dest_tag }}
+      additional_tags: latest
+      include_sha_tags: true
       allowed_identity_regex: https://github.com/complytime/org-infra(/.*)?
       fail_if_dest_exists: ${{ inputs.force != true }}
     secrets:
