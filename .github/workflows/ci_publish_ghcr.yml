@@ -52,15 +52,12 @@ jobs:
     name: Pre-build Source Scan
     permissions:
       contents: read          # checkout source for scanning
-      packages: write         # reusable workflow's nested job requires write
       security-events: write  # upload SARIF results
-      id-token: write         # OIDC for registry auth
       actions: read           # access reusable workflow
     uses: complytime/org-infra/.github/workflows/reusable_vuln_scan.yml@cfd981e757253218aefb37c91969c32827e5c4b1 # v0.2.1
     with:
       enable_osv: true
       enable_trivy_source: true
-      enable_trivy_image: false
       trivy_severity: HIGH,CRITICAL
     secrets: inherit
 
@@ -95,16 +92,11 @@ jobs:
     name: Scan Beacon Distro Image
     needs: [build-beacon-distro]
     permissions:
-      contents: read          # reusable may checkout for config
-      packages: write         # pull image from GHCR
+      packages: write         # push attestation to registry
       security-events: write  # upload SARIF results
-      id-token: write         # OIDC for registry auth
-      actions: read           # required by osv_scanner nested job
-    uses: complytime/org-infra/.github/workflows/reusable_vuln_scan.yml@cfd981e757253218aefb37c91969c32827e5c4b1 # v0.2.1
+      id-token: write         # keyless signing of attestation
+    uses: complytime/org-infra/.github/workflows/reusable_trivy_image_scan.yml@cfd981e757253218aefb37c91969c32827e5c4b1 # v0.2.1
     with:
-      enable_osv: false
-      enable_trivy_source: false
-      enable_trivy_image: true
       image_ref: ${{ needs.build-beacon-distro.outputs.image }}:sha-${{ github.sha }}
       image_digest: ${{ needs.build-beacon-distro.outputs.digest }}
       trivy_severity: HIGH,CRITICAL
