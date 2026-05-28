@@ -1,0 +1,59 @@
+# GHCR Image Pruning Workflow
+# ===========================
+# Prunes old SHA-tagged container images from GHCR to control storage.
+# Keeps version-tagged images (v*) and the 10 most recent SHA builds.
+#
+# Runs weekly and after every successful GHCR publish pipeline.
+# Untagged manifests (cosign signatures, attestations, SBOMs) are
+# left alone -- they are garbage-collected by GHCR automatically
+# when their referent digest is deleted.
+#
+# Permissions & Scorecard
+# -----------------------
+# The upstream actions/delete-package-versions examples use a PAT
+# (secrets.PAT), but PATs are bound to a single person's account and
+# silently break when that person leaves or the token is revoked.
+# We use GITHUB_TOKEN instead -- it is issued per-run, auto-scoped to
+# this repo, and requires no secret rotation.
+#
+# Deleting package versions requires packages:write. There is no
+# narrower scope available. Top-level permissions are set to none so
+# no job inherits write access by default; packages:write is granted
+# only on the job that needs it. OpenSSF Scorecard surfaces job-level
+# write permissions as informational warnings but does not penalize
+# the score (see https://github.com/ossf/scorecard/blob/main/docs/checks.md,
+# Token-Permissions).
+
+name: Prune GHCR Images
+
+on:
+  # Called by ci_publish_ghcr.yml after successful image publication
+  workflow_call:
+  # Weekly scheduled cleanup
+  schedule:
+    - cron: "0 6 * * 0" # Weekly, Sunday 06:00 UTC
+  # Manual triggering for ad-hoc cleanup
+  workflow_dispatch:
+
+permissions:
+  contents: none
+  packages: none
+
+concurrency:
+  group: prune-ghcr
+  cancel-in-progress: false
+
+jobs:
+  prune-beacon-distro:
+    name: Prune beacon-distro
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - name: Delete old SHA-tagged versions
+        uses: actions/delete-package-versions@e5bc658cc4c965c472efe991f8beea3981499c55 # v5.0.0
+        with:
+          package-name: complybeacon-beacon-distro
+          package-type: container
+          min-versions-to-keep: 10
+          ignore-versions: "^v"

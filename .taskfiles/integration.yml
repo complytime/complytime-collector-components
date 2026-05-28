@@ -3,6 +3,21 @@ version: "3"
 vars:
   GINKGO_OUTPUT_DIR: '{{.TEST_DIR | default (printf "%s/.test-output" .ROOT_DIR)}}/integration'
   CERT_DIR: '{{.CERT_DIR | default (printf "%s/certs" .ROOT_DIR)}}'
+  # Image selection: local build vs GHCR
+  USE_GHCR_IMAGE: '{{.USE_GHCR_IMAGE | default "false"}}'
+  GHCR_IMAGE: '{{.GHCR_IMAGE | default "ghcr.io/complytime/complybeacon-beacon-distro"}}'
+  GHCR_TAG: '{{.GHCR_TAG | default (env "GITHUB_SHA" | printf "sha-%s")}}'
+  # Compose command: podman-compose (local) or docker compose (CI)
+  # CI sets this via env var to use docker compose instead of podman-compose
+  COMPOSE_CMD: '{{.COMPOSE_CMD | default "podman-compose"}}'
+  # Host port overrides — offset from standard ports to avoid conflicts
+  # with services already running on the host (e.g. MinIO on 9000).
+  # Override with env vars to use different ports.
+  # CI uses standard ports (8088, 3100, etc.); local uses offset ports.
+  WEBHOOK_PORT: '{{.WEBHOOK_PORT | default "18088"}}'
+  LOKI_PORT: '{{.LOKI_PORT | default "13100"}}'
+  RUSTFS_PORT: '{{.RUSTFS_PORT | default "19000"}}'
+  COMPASS_PORT: '{{.COMPASS_PORT | default "18081"}}'
 
 tasks:
   default:
@@ -26,11 +41,26 @@ tasks:
     cmds:
       - task: ensure-certs
       - task: test-layer
-        vars: { PROFILE: base }
+        vars:
+          {
+            PROFILE: base,
+            USE_GHCR_IMAGE: "{{.USE_GHCR_IMAGE}}",
+            GHCR_TAG: "{{.GHCR_TAG}}",
+          }
       - task: test-layer
-        vars: { PROFILE: storage }
+        vars:
+          {
+            PROFILE: storage,
+            USE_GHCR_IMAGE: "{{.USE_GHCR_IMAGE}}",
+            GHCR_TAG: "{{.GHCR_TAG}}",
+          }
       - task: test-layer
-        vars: { PROFILE: enrichment }
+        vars:
+          {
+            PROFILE: enrichment,
+            USE_GHCR_IMAGE: "{{.USE_GHCR_IMAGE}}",
+            GHCR_TAG: "{{.GHCR_TAG}}",
+          }
 
   test-profile:
     desc: "Run a single integration test layer (PROFILE=base|storage|enrichment|storage-tls)"
@@ -40,6 +70,16 @@ tasks:
       - task: ensure-certs
       - task: test-layer
         vars: { PROFILE: "{{.PROFILE}}" }
+
+  test-with-ghcr:
+    desc: Run integration tests using GHCR image
+    vars:
+      GHCR_TAG_INPUT: "{{.GHCR_TAG_INPUT | default .GHCR_TAG}}"
+    cmds:
+      - task: test
+        vars:
+          USE_GHCR_IMAGE: "true"
+          GHCR_TAG: "{{.GHCR_TAG_INPUT}}"
 
   test-layer:
     internal: true
@@ -64,6 +104,13 @@ tasks:
             enrichment) echo "--profile storage --profile enrichment" ;;
             *) echo "" ;;
           esac
+      COMPOSE_FILES:
+        sh: |
+          if [ "{{.USE_GHCR_IMAGE}}" = "true" ]; then
+            echo "-f compose.yaml -f compose.ghcr.yaml"
+          else
+            echo "-f compose.yaml"
+          fi
       GINKGO_FLAGS:
         sh: |
           if [ "${CI:-}" = "true" ]; then
@@ -75,14 +122,32 @@ tasks:
     env:
       COLLECTOR_CONFIG: "{{.COLLECTOR_CONFIG}}"
       GOWORK: "off"
+      # Compose env vars (host port overrides + GHCR image selection)
+      WEBHOOK_PORT: "{{.WEBHOOK_PORT}}"
+      LOKI_PORT: "{{.LOKI_PORT}}"
+      RUSTFS_PORT: "{{.RUSTFS_PORT}}"
+      COMPASS_PORT: "{{.COMPASS_PORT}}"
+      COLLECTOR_IMAGE: '{{if eq .USE_GHCR_IMAGE "true"}}{{.GHCR_IMAGE}}:{{.GHCR_TAG}}{{else}}{{end}}'
+      # Go test env vars (consumed by EnvOrDefault in test suites)
+      WEBHOOK_URL: "http://localhost:{{.WEBHOOK_PORT}}"
+      LOKI_URL: "http://localhost:{{.LOKI_PORT}}"
+      S3_URL: "http://localhost:{{.RUSTFS_PORT}}"
     cmds:
       - echo "=== Running {{.PROFILE}} layer ==="
-      - task: :infra:build
+      - task: build-if-local
+        vars: { USE_GHCR_IMAGE: "{{.USE_GHCR_IMAGE}}" }
       - defer:
-          { task: down, vars: { COMPOSE_PROFILES: "{{.COMPOSE_PROFILES}}" } }
-      - podman-compose -f compose.yaml {{.COMPOSE_PROFILES}} up -d --build
+          {
+            task: down,
+            vars:
+              {
+                COMPOSE_PROFILES: "{{.COMPOSE_PROFILES}}",
+                COMPOSE_FILES: "{{.COMPOSE_FILES}}",
+              },
+          }
+      - "{{.COMPOSE_CMD}} {{.COMPOSE_FILES}} {{.COMPOSE_PROFILES}} up -d --build"
       - task: wait
-        vars: { PROFILE: "{{.PROFILE}}" }
+        vars: { PROFILE: "{{.PROFILE}}", COMPOSE_FILES: "{{.COMPOSE_FILES}}" }
       - mkdir -p {{.GINKGO_OUTPUT_DIR}}
       - go tool ginkgo run {{.GINKGO_FLAGS}} --output-dir={{.GINKGO_OUTPUT_DIR}} --junit-report=junit-{{.PROFILE}}.xml {{.TEST_DIR}}
 
@@ -109,29 +174,54 @@ tasks:
             enrichment) echo "--profile storage --profile enrichment" ;;
             *) echo "" ;;
           esac
+      COMPOSE_FILES:
+        sh: |
+          if [ "{{.USE_GHCR_IMAGE}}" = "true" ]; then
+            echo "-f compose.yaml -f compose.ghcr.yaml"
+          else
+            echo "-f compose.yaml"
+          fi
       TEST_DIR: './tests/integration/{{.PROFILE | replace "-" "_"}}/'
     env:
       COLLECTOR_CONFIG: "{{.COLLECTOR_CONFIG}}"
+      WEBHOOK_PORT: "{{.WEBHOOK_PORT}}"
+      LOKI_PORT: "{{.LOKI_PORT}}"
+      RUSTFS_PORT: "{{.RUSTFS_PORT}}"
+      COMPASS_PORT: "{{.COMPASS_PORT}}"
+      COLLECTOR_IMAGE: '{{if eq .USE_GHCR_IMAGE "true"}}{{.GHCR_IMAGE}}:{{.GHCR_TAG}}{{else}}{{end}}'
     cmds:
       - task: ensure-certs
-      - task: :infra:build
-      - podman-compose -f compose.yaml {{.COMPOSE_PROFILES}} up -d --build
+      - task: build-if-local
+        vars: { USE_GHCR_IMAGE: "{{.USE_GHCR_IMAGE}}" }
+      - "{{.COMPOSE_CMD}} {{.COMPOSE_FILES}} {{.COMPOSE_PROFILES}} up -d --build"
       - task: wait
-        vars: { PROFILE: "{{.PROFILE}}" }
+        vars: { PROFILE: "{{.PROFILE}}", COMPOSE_FILES: "{{.COMPOSE_FILES}}" }
       - cmd: 'echo "Stack running. Run tests with: GOWORK=off go tool ginkgo run -vv {{.TEST_DIR}}"'
       - cmd: 'echo "Tear down with: task integration:down"'
 
+  build-if-local:
+    internal: true
+    status:
+      - test "{{.USE_GHCR_IMAGE}}" = "true"
+    cmds:
+      - echo "Building local image"
+      - task: :infra:build
+
   wait:
     internal: true
-    vars:
-      PROFILE: '{{.PROFILE | default "base"}}'
     cmd: |
       dump_container_info() {
         local cid="$1" tail="${2:-10}"
+        # Detect container runtime from compose command
+        local runtime="podman"
+        if [[ "{{.COMPOSE_CMD}}" == "docker"* ]]; then
+          runtime="docker"
+        fi
         if [[ -n "$cid" ]]; then
-          podman ps -a --filter "name=$cid" --format json 2>/dev/null | \
-            python3 -c "import sys,json; [print(n[0],c.get('Status','')) for c in json.load(sys.stdin) for n in [c.get('Names',[])]]" 2>/dev/null || true
-          podman logs --tail "$tail" "$cid" 2>&1 || true
+          echo "Container status:"
+          $runtime ps -a --filter "name=$cid" --format "table {{.Names}}\t{{.Status}}" 2>/dev/null || true
+          echo "Container logs (last $tail lines):"
+          $runtime logs --tail "$tail" "$cid" 2>&1 || true
         fi
       }
 
@@ -157,33 +247,36 @@ tasks:
         return 1
       }
 
-      # Build service→container name map from podman-compose (project-scoped)
+      # Build service→container name map from compose (project-scoped)
+      # Note: docker compose and podman-compose have different JSON output formats
       declare -A CONTAINERS
       while read -r cname; do
         for svc in collector loki rustfs rustfs-tls compass; do
-          if [[ "$cname" == *"_${svc}_"* ]]; then
+          if [[ "$cname" == *"_${svc}_"* || "$cname" == *"-${svc}-"* ]]; then
             CONTAINERS["$svc"]="$cname"
           fi
         done
-      done < <(podman-compose -f compose.yaml ps --format json 2>/dev/null | \
+      done < <({{.COMPOSE_CMD}} {{.COMPOSE_FILES}} ps --format json 2>/dev/null | \
                python3 -c "import sys,json; [print(n) for c in json.load(sys.stdin) for n in c.get('Names',[])]" 2>/dev/null || true)
       echo "Resolved containers:"
       for svc in "${!CONTAINERS[@]}"; do echo "  $svc -> ${CONTAINERS[$svc]}"; done
 
       echo "Waiting for services to be ready..."
-      wait_for_service "Collector webhook" "http://localhost:8088/eventreceiver/healthcheck" "" "${CONTAINERS[collector]:-}"
-      wait_for_service "Loki" "http://localhost:3100/ready" "" "${CONTAINERS[loki]:-}"
+      wait_for_service "Collector webhook" "http://localhost:{{.WEBHOOK_PORT}}/eventreceiver/healthcheck" "" "${CONTAINERS[collector]:-}"
+      wait_for_service "Loki" "http://localhost:{{.LOKI_PORT}}/ready" "" "${CONTAINERS[loki]:-}"
       {{if or (eq .PROFILE "storage") (eq .PROFILE "enrichment")}}
-      wait_for_service "RustFS" "http://localhost:9000/health" "" "${CONTAINERS[rustfs]:-}"
+      wait_for_service "RustFS" "http://localhost:{{.RUSTFS_PORT}}/health" "" "${CONTAINERS[rustfs]:-}"
       {{end}}
       {{if eq .PROFILE "storage-tls"}}
-      wait_for_service "RustFS TLS" "https://localhost:9000/health" "-k" "${CONTAINERS[rustfs-tls]:-}"
+      wait_for_service "RustFS TLS" "https://localhost:{{.RUSTFS_PORT}}/health" "-k" "${CONTAINERS[rustfs-tls]:-}"
       {{end}}
       {{if eq .PROFILE "enrichment"}}
-      wait_for_service "Mock Compass" "https://localhost:8081/healthz" "-sk" "${CONTAINERS[compass]:-}"
+      wait_for_service "Mock Compass" "https://localhost:{{.COMPASS_PORT}}/healthz" "-sk" "${CONTAINERS[compass]:-}"
       {{end}}
       echo "All services ready."
 
   down:
     desc: Tear down integration test stack
-    cmd: podman-compose -f compose.yaml {{.COMPOSE_PROFILES}} down -v
+    vars:
+      COMPOSE_FILES: '{{.COMPOSE_FILES | default "-f compose.yaml"}}'
+    cmd: "{{.COMPOSE_CMD}} {{.COMPOSE_FILES}} {{.COMPOSE_PROFILES}} down -v"

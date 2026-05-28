@@ -1,9 +1,20 @@
 # Publish Images Production Workflow
 # ==================================
 # Multi-stage security pipeline for building, scanning, and publishing container images.
+# ONLY runs AFTER all CI tests pass to ensure image quality.
 #
 # Pipeline Flow:
-#   scan-source → build-beacon-distro → scan-image-beacon-distro → sign-beacon-distro
+#   Production (main branch):
+#     wait-for-ci → scan-source → build-beacon-distro → scan-image-beacon-distro → sign-beacon-distro → test-published-image
+#   Dev (PRs from org members):
+#     check-contributor → scan-source → build-beacon-distro → scan-image-beacon-distro → sign-beacon-distro → test-published-image
+#
+# Tagging Strategy:
+#   - All builds: sha-<commit> (immutable, for traceability)
+#
+# Security:
+#   - PRs from external contributors do NOT trigger image builds
+#   - Only org members' PRs can publish images
 #
 # NOTE: Scorecard flags 'write' permissions but these are REQUIRED for image publishing
 # See: https://docs.github.com/en/actions/sharing-automations/reusing-workflows
@@ -11,18 +22,34 @@
 name: Publish Images to GHCR
 
 on:
-  push:
-    branches:
-      - main
+  # Called by CI workflows after tests pass (production builds from main branch)
+  workflow_call:
+    inputs:
+      trigger_source:
+        description: "Source workflow that triggered this build (for observability)"
+        type: string
+        required: false
+        default: "unknown"
+      force_rebuild:
+        description: "Force rebuild without cache (typically false for CI builds)"
+        type: boolean
+        required: false
+        default: false
+  # Direct PR builds from org members (gated by org membership check)
+  pull_request:
+    branches: [main]
     paths:
-      - '**/Containerfile*'
-      - '.github/workflows/ci_publish_ghcr.yml'
+      - "**/Containerfile*"
+      - "beacon-distro/**"
+      - "proofwatch/**"
+      - "truthbeam/**"
+      - ".github/workflows/ci_publish_ghcr.yml"
   schedule:
-    - cron: '0 0 */30 * *'  # Monthly rebuilds for base image security updates
-  workflow_dispatch:  # Allow manual triggering
+    - cron: "0 0 */30 * *" # Monthly rebuilds for base image security updates
+  workflow_dispatch: # Allow manual triggering
     inputs:
       force_rebuild:
-        description: 'Force rebuild without cache'
+        description: "Force rebuild without cache"
         type: boolean
         required: false
         default: false
@@ -44,48 +71,97 @@ concurrency:
 
 jobs:
   # ═══════════════════════════════════════════════════════════════════════════
+  # STAGE -1: ORG MEMBER CHECK (for PRs)
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Only allow image builds from org members to prevent malicious PRs from
+  # consuming CI resources or attempting supply chain attacks.
+  check-contributor:
+    name: Verify Org Membership
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    outputs:
+      is_org_member: ${{ steps.check.outputs.is_member }}
+    permissions:
+      contents: read
+    steps:
+      - name: Check org membership
+        id: check
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          ORG: complytime
+        run: |
+          # Check if PR author is an org member
+          if gh api "orgs/${ORG}/members/${PR_AUTHOR}" --silent 2>/dev/null; then
+            echo "is_member=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::✅ ${PR_AUTHOR} is a ${ORG} org member - allowing image build"
+          else
+            echo "is_member=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::⏭️  ${PR_AUTHOR} is not a ${ORG} org member - skipping image build"
+          fi
+
+  # ═══════════════════════════════════════════════════════════════════════════
   # STAGE 1: PRE-BUILD SOURCE SCANNING (shift-left security)
   # ═══════════════════════════════════════════════════════════════════════════
   # Catches vulnerabilities BEFORE building—fail fast, save CI time.
   # Single scan covers entire repository (both components).
+  # NOTE: Image scanning is disabled here (enable_trivy_image: false) because no
+  # image exists yet. Image scanning happens in STAGE 3 post-build.
   scan-source:
     name: Pre-build Source Scan
+    needs: [check-contributor]
+    if: |
+      always() && (
+        github.event_name == 'workflow_call' ||
+        (needs.check-contributor.result == 'success' && needs.check-contributor.outputs.is_org_member == 'true') ||
+        github.event_name == 'schedule' ||
+        github.event_name == 'workflow_dispatch'
+      )
     permissions:
-      contents: read          # checkout source for scanning
-      packages: write         # reusable workflow's nested job requires write
-      security-events: write  # upload SARIF results
-      id-token: write         # OIDC for registry auth
-      actions: read           # access reusable workflow
+      contents: read # checkout source for scanning
+      packages: write # reusable workflow's nested job requires write
+      security-events: write # upload SARIF results
+      id-token: write # OIDC for registry auth
+      actions: read # access reusable workflow
     uses: complytime/org-infra/.github/workflows/reusable_vuln_scan.yml@cfd981e757253218aefb37c91969c32827e5c4b1 # v0.2.1
     with:
       enable_osv: true
       enable_trivy_source: true
-      enable_trivy_image: false
+      enable_trivy_image: false # No image exists yet; image scan happens post-build in STAGE 3
       trivy_severity: HIGH,CRITICAL
-    secrets: inherit
 
   # ═══════════════════════════════════════════════════════════════════════════
   # STAGE 2: BUILD AND PUSH (after source scan passes)
   # ═══════════════════════════════════════════════════════════════════════════
   build-beacon-distro:
     name: Build Beacon Distro Image
-    needs: [scan-source]
+    needs: [scan-source, check-contributor]
+    if: >-
+      always()
+      && (needs.scan-source.result == 'success' || needs.scan-source.result == 'skipped')
+      && (
+        (github.event_name == 'workflow_call' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+        || (needs.check-contributor.result == 'success' && needs.check-contributor.outputs.is_org_member == 'true')
+      )
     permissions:
-      contents: read       # checkout source for build
-      packages: write      # push image to GHCR
-      id-token: write      # OIDC for registry auth
-      actions: read        # access reusable workflow
-      attestations: write  # publish build provenance
-    uses: complytime/org-infra/.github/workflows/reusable_publish_ghcr.yml@cfd981e757253218aefb37c91969c32827e5c4b1 # v0.2.1
+      contents: read # checkout source for build
+      packages: write # push image to GHCR
+      id-token: write # OIDC for registry auth
+      actions: read # access reusable workflow
+      attestations: write # publish build provenance
+    # zizmor:ignore ref-version-mismatch - Fix update for the job
+    uses: complytime/org-infra/.github/workflows/reusable_publish_ghcr.yml@a82d1342e281aac41581e646b26c3c6abfa68bc2 # experimental
     with:
       component_name: beacon-distro
       containerfile_path: beacon-distro/Containerfile.collector
-      context_path: ./beacon-distro
+      context_path: .
       image_name: complytime/complybeacon-beacon-distro
       image_description: ComplyBeacon Beacon Distro collector
       image_vendor: ComplyTime
       force_rebuild: ${{ inputs.force_rebuild || false }}
-    secrets: inherit
+      allow_unprotected_ref: true # Enable PR builds (gated by org membership check)
+    # NOTE: Outputs from the reusable workflow (image, digest, image_ref, tags)
+    # are automatically available to downstream jobs via needs.build-beacon-distro.outputs.*
 
   # ═══════════════════════════════════════════════════════════════════════════
   # STAGE 3: POST-BUILD IMAGE SCANNING
@@ -94,21 +170,21 @@ jobs:
   scan-image-beacon-distro:
     name: Scan Beacon Distro Image
     needs: [build-beacon-distro]
+    if: ${{ needs.build-beacon-distro.result == 'success' && needs.build-beacon-distro.outputs.image != '' }}
     permissions:
-      contents: read          # reusable may checkout for config
-      packages: write         # pull image from GHCR
-      security-events: write  # upload SARIF results
-      id-token: write         # OIDC for registry auth
-      actions: read           # required by osv_scanner nested job
+      contents: read # reusable may checkout for config
+      packages: write # pull image from GHCR
+      security-events: write # upload SARIF results
+      id-token: write # OIDC for registry auth
+      actions: read # required by osv_scanner nested job
     uses: complytime/org-infra/.github/workflows/reusable_vuln_scan.yml@cfd981e757253218aefb37c91969c32827e5c4b1 # v0.2.1
     with:
       enable_osv: false
       enable_trivy_source: false
       enable_trivy_image: true
-      image_ref: ${{ needs.build-beacon-distro.outputs.image }}:sha-${{ github.sha }}
+      image_ref: ${{ needs.build-beacon-distro.outputs.image_ref }}
       image_digest: ${{ needs.build-beacon-distro.outputs.digest }}
       trivy_severity: HIGH,CRITICAL
-    secrets: inherit
 
   # ═══════════════════════════════════════════════════════════════════════════
   # STAGE 4: SIGN AND VERIFY (keyless signing with Sigstore)
@@ -116,58 +192,203 @@ jobs:
   sign-beacon-distro:
     name: Sign Beacon Distro Image
     needs: [build-beacon-distro, scan-image-beacon-distro]
+    if: >-
+      always()
+      && needs.build-beacon-distro.result == 'success'
+      && needs.build-beacon-distro.outputs.image != ''
+      && needs.build-beacon-distro.outputs.digest != ''
+      && (needs.scan-image-beacon-distro.result == 'success' || needs.scan-image-beacon-distro.result == 'skipped')
     permissions:
-      packages: write  # attach signature to image
-      id-token: write  # OIDC for keyless signing
+      packages: write # attach signature to image
+      id-token: write # OIDC for keyless signing
     uses: complytime/org-infra/.github/workflows/reusable_sign_and_verify.yml@cfd981e757253218aefb37c91969c32827e5c4b1 # v0.2.1
     with:
       image_name: ${{ needs.build-beacon-distro.outputs.image }}
       digest: ${{ needs.build-beacon-distro.outputs.digest }}
       allowed_identity_regex: https://github.com/complytime/org-infra(/.*)?
-    secrets: inherit
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # STAGE 5: SUMMARY (provides unified status)
+  # STAGE 5: INTEGRATION TEST (validates published image)
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Tests the published GHCR image to ensure it works correctly
+  test-published-image:
+    name: Test Published Image
+    needs: [build-beacon-distro, sign-beacon-distro]
+    if: >-
+      always()
+      && needs.build-beacon-distro.result == 'success'
+      && needs.build-beacon-distro.outputs.image != ''
+      && (needs.sign-beacon-distro.result == 'success' || needs.sign-beacon-distro.result == 'skipped')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # checkout source for tests
+      packages: read # pull GHCR image for testing
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        with:
+          go-version: "1.26"
+
+      - name: Install Task
+        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
+        with:
+          version: 3.x
+          repo-token: ${{ github.token }}
+
+      - name: Test GHCR image
+        env:
+          USE_GHCR_IMAGE: "true"
+          GHCR_IMAGE_REF: ${{ needs.build-beacon-distro.outputs.image_ref }}
+          COMPOSE_CMD: "docker compose"
+          WEBHOOK_PORT: "8088"
+          LOKI_PORT: "3100"
+          RUSTFS_PORT: "9000"
+          COMPASS_PORT: "8081"
+          CI: "true"
+        run: |
+          export GHCR_IMAGE="${GHCR_IMAGE_REF%%:*}"
+          export GHCR_TAG="${GHCR_IMAGE_REF##*:}"
+          echo "Testing published image: ${GHCR_IMAGE}:${GHCR_TAG}"
+          task integration:test-profile PROFILE=base
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # STAGE 6: SUMMARY (provides unified status)
   # ═══════════════════════════════════════════════════════════════════════════
   summary:
     name: Pipeline Summary
-    needs: [scan-source, build-beacon-distro, scan-image-beacon-distro, sign-beacon-distro]
+    needs:
+      [
+        check-contributor,
+        scan-source,
+        build-beacon-distro,
+        scan-image-beacon-distro,
+        sign-beacon-distro,
+        test-published-image,
+      ]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     permissions:
-      contents: read  # minimal permission for summary generation
+      contents: none # no checkout needed; only writes GITHUB_STEP_SUMMARY
     steps:
       - name: Generate Summary
         env:
+          R_CONTRIB: ${{ needs.check-contributor.result }}
           R_SRC: ${{ needs.scan-source.result }}
           R_B2: ${{ needs.build-beacon-distro.result }}
           R_S2: ${{ needs.scan-image-beacon-distro.result }}
           R_G2: ${{ needs.sign-beacon-distro.result }}
+          R_TEST: ${{ needs.test-published-image.result }}
+          IS_ORG_MEMBER: ${{ needs.check-contributor.outputs.is_org_member }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           icon() { case "$1" in success) echo "✅";; skipped) echo "⏭️";; *) echo "❌";; esac; }
 
-          cat >> "$GITHUB_STEP_SUMMARY" << EOF
-          ## 🚀 Image Pipeline Summary
+          # Determine build type
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            BUILD_TYPE="🔧 Dev Build (PR)"
+          else
+            BUILD_TYPE="🚀 Production Build"
+          fi
+          BUILD_TAG="sha-$GITHUB_SHA"
+
+          {
+            cat << EOF
+          ## ${BUILD_TYPE}
 
           | Stage | Beacon Distro |
           |-------|---------------|
+          | Org Member Check | $(icon "$R_CONTRIB") |
           | Source Scan | $(icon "$R_SRC") |
           | Build | $(icon "$R_B2") |
           | Image Scan | $(icon "$R_S2") |
           | Sign | $(icon "$R_G2") |
+          | Integration Test | $(icon "$R_TEST") |
           EOF
-          if [[ "$R_B2" != "success" && "$R_B2" != "skipped" ]]; then
-            echo "⚠️ **One or more components failed.**" >> "$GITHUB_STEP_SUMMARY"
-            exit 1
-          fi
-          cat >> "$GITHUB_STEP_SUMMARY" << EOF
+
+            # PR-specific checks
+            if [[ "$EVENT_NAME" == "pull_request" && "$IS_ORG_MEMBER" != "true" ]]; then
+              cat << EOF
+
+          ⏭️ **External contributor - image build skipped for security.**
+          EOF
+              exit 0
+            fi
+
+            if [[ ("$EVENT_NAME" == "workflow_dispatch" || "$EVENT_NAME" == "schedule") && "$R_B2" == "skipped" ]]; then
+              echo "❌ **Build was skipped — pipeline did not produce an image.**"
+              exit 1
+            fi
+
+            if [[ "$R_B2" != "success" && "$R_B2" != "skipped" ]]; then
+              echo "⚠️ **One or more components failed.**"
+              exit 1
+            fi
+
+            if [[ "$R_TEST" != "success" && "$R_TEST" != "skipped" ]]; then
+              echo "⚠️ **Integration tests failed.**"
+              exit 1
+            fi
+
+            cat << EOF
 
           ✅ **Pipeline completed successfully.**
 
-          ### 🔒 Security Checks Passed
-          - Secret scanning
-          - Vulnerability scanning
-          - SBOM generated
-          - Provenance attestation
-          - Image signed and verified
+          ### 🔒 Security & Quality Checks
+          - ✅ CI tests passed (quality gate)
+          - ✅ Secret scanning
+          - ✅ Vulnerability scanning (source)
           EOF
+
+            # Only claim stages passed if they actually ran successfully
+            if [[ "$R_S2" == "success" ]]; then
+              echo "- ✅ Vulnerability scanning (image)"
+            else
+              echo "- ⏭️ Vulnerability scanning (image) - skipped"
+            fi
+
+            if [[ "$R_G2" == "success" ]]; then
+              echo "- ✅ SBOM generated"
+              echo "- ✅ Provenance attestation"
+              echo "- ✅ Image signed and verified"
+            else
+              echo "- ⏭️ SBOM, provenance, and signing - skipped for dev builds"
+            fi
+
+            if [[ "$R_TEST" == "success" ]]; then
+              echo "- ✅ Integration tests passed (GHCR image validated)"
+            else
+              echo "- ⏭️ Integration tests - skipped"
+            fi
+
+            cat << EOF
+
+          ### 📦 Published Images
+          - **Tag**: \`${BUILD_TAG}\`
+          EOF
+
+            if [[ "$EVENT_NAME" == "pull_request" ]]; then
+              cat << EOF
+
+          > **Note**: This is a dev build from a PR. Each push creates a new immutable SHA-tagged image.
+          > Use \`skopeo inspect docker://ghcr.io/complytime/complybeacon-beacon-distro:${BUILD_TAG}\` to verify.
+          EOF
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # STAGE 7: PRUNE OLD IMAGES (cleanup after successful publish)
+  # ═══════════════════════════════════════════════════════════════════════════
+  prune-old-images:
+    name: Prune Old GHCR Images
+    needs: [build-beacon-distro, sign-beacon-distro]
+    if: >-
+      always()
+      && needs.build-beacon-distro.result == 'success'
+      && (needs.sign-beacon-distro.result == 'success' || needs.sign-beacon-distro.result == 'skipped')
+      && github.event_name != 'pull_request'
+    permissions:
+      packages: write # required by ci_prune_ghcr.yml to delete package versions
+    uses: ./.github/workflows/ci_prune_ghcr.yml

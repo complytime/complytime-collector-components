@@ -377,10 +377,13 @@ The Beacon distribution is a custom OpenTelemetry Collector.
 **Key Files:**
 - `beacon-distro/config.yaml` - Collector configuration
 - `beacon-distro/Containerfile.collector` - Container definition
+- `beacon-distro/manifest.yaml` - Collector builder configuration
 
 **Development Workflow:**
+
+**Local builds (quick iteration):**
 ```bash
-# Build the collector image
+# Build the collector image locally
 podman build -f beacon-distro/Containerfile.collector -t complybeacon-collector beacon-distro/
 
 # Or force rebuild without cache
@@ -392,6 +395,44 @@ podman run --rm complybeacon-collector --config /etc/otelcol-beacon/config.yaml
 # Full stack deployment for integration testing
 task infra:deploy
 ```
+
+**CI builds (automated image publishing):**
+
+When you modify Containerfiles or source code and open a PR, the CI automatically builds and publishes dev images (if you're an org member):
+
+```bash
+# 1. Make changes to beacon-distro, proofwatch, or truthbeam
+vim beacon-distro/Containerfile.collector
+
+# 2. Commit and push to your branch
+git add .
+git commit -s -m "feat(beacon-distro): update base image to UBI10"
+git push origin your-branch
+
+# 3. Open a PR to main
+# The workflow will automatically:
+#   - Verify you're an org member
+#   - Build the image
+#   - Scan for vulnerabilities
+#   - Sign the image
+#   - Run integration tests
+#   - Publish to ghcr.io/complytime/complybeacon-beacon-distro:dev-pr<number>
+
+# 4. Verify your image was published
+skopeo inspect docker://ghcr.io/complytime/complybeacon-beacon-distro:dev-pr123
+
+# 5. Use the dev image in testing
+podman pull ghcr.io/complytime/complybeacon-beacon-distro:dev-pr123
+# Or in compose.yaml:
+# image: ghcr.io/complytime/complybeacon-beacon-distro:dev-pr123
+```
+
+**When images are built:**
+- ✅ Push to `main` branch (production, tagged `sha-<commit>`)
+- ✅ PRs from org members (dev, tagged `dev-pr<number>` + `sha-<commit>`)
+- ❌ PRs from external contributors (no image built for security)
+
+See [docs/publish_image/publish_image.md](./publish_image/publish_image.md) for complete details on the image publishing pipeline.
 
 ## Debugging and Troubleshooting
 
@@ -409,6 +450,137 @@ podman-compose -f compose.yaml logs -f collector
 podman images | grep complybeacon            # List built images
 podman inspect complybeacon-collector        # Inspect image details
 ```
+
+## Verifying Published Images
+
+When you open a PR or merge to `main`, the CI pipeline automatically builds and publishes container images to GitHub Container Registry (GHCR). Use `skopeo` to verify your images without pulling them.
+
+### Install Skopeo
+
+```bash
+# macOS
+brew install skopeo
+
+# Fedora/RHEL/CentOS
+dnf install skopeo
+
+# Ubuntu/Debian
+apt-get install skopeo
+```
+
+### Quick Checks
+
+```bash
+# List all available tags
+skopeo list-tags docker://ghcr.io/complytime/complybeacon-beacon-distro
+
+# Check if your PR image exists (replace 123 with your PR number)
+skopeo inspect docker://ghcr.io/complytime/complybeacon-beacon-distro:dev-pr123
+
+# Check if a main branch image exists (replace abc123 with commit SHA)
+skopeo inspect docker://ghcr.io/complytime/complybeacon-beacon-distro:sha-abc123
+
+# Get just the digest
+skopeo inspect docker://ghcr.io/complytime/complybeacon-beacon-distro:dev-pr123 \
+  --format "{{.Digest}}"
+
+# Get image creation timestamp
+skopeo inspect docker://ghcr.io/complytime/complybeacon-beacon-distro:dev-pr123 \
+  --format "{{.Created}}"
+```
+
+### Authentication
+
+If the repository is private, authenticate first:
+
+```bash
+# Create a GitHub Personal Access Token with 'read:packages' scope at:
+# https://github.com/settings/tokens
+
+# Then login
+skopeo login ghcr.io
+# Username: your-github-username
+# Password: paste your token (ghp_...)
+
+# Or use environment variable
+echo $GITHUB_TOKEN | skopeo login ghcr.io -u your-github-username --password-stdin
+```
+
+### Image Tagging Strategy
+
+| Build Type      | Trigger            | Tags                             | Notes                                 |
+|-----------------|--------------------|----------------------------------|---------------------------------------|
+| **Production**  | Merge to `main`    | `sha-<commit>`                   | Immutable, builds after CI passes     |
+| **Dev**         | PR from org member | `dev-pr<number>`, `sha-<commit>` | `dev-pr` is mutable (updates on push) |
+| **External PR** | PR from non-member | None                             | No images built (security)            |
+
+### Common Scenarios
+
+**Verify your PR image was published:**
+
+```bash
+# Find your PR number (visible in PR title, e.g., #123)
+# Check the Actions tab for the "Publish Images to GHCR" workflow
+
+# List all tags to confirm
+skopeo list-tags docker://ghcr.io/complytime/complybeacon-beacon-distro | grep "dev-pr123"
+
+# Inspect the image
+skopeo inspect docker://ghcr.io/complytime/complybeacon-beacon-distro:dev-pr123
+```
+
+**Use dev image in local testing:**
+
+```bash
+# Pull the image
+podman pull ghcr.io/complytime/complybeacon-beacon-distro:dev-pr123
+
+# Or reference it directly in compose.yaml
+# Edit compose.yaml:
+# services:
+#   collector:
+#     image: ghcr.io/complytime/complybeacon-beacon-distro:dev-pr123
+```
+
+**Compare dev and production images:**
+
+```bash
+# Both should have the same digest if built from the same commit
+DEV_DIGEST=$(skopeo inspect docker://ghcr.io/complytime/complybeacon-beacon-distro:dev-pr123 --format "{{.Digest}}")
+SHA_DIGEST=$(skopeo inspect docker://ghcr.io/complytime/complybeacon-beacon-distro:sha-abc123 --format "{{.Digest}}")
+
+echo "Dev digest:  $DEV_DIGEST"
+echo "SHA digest:  $SHA_DIGEST"
+
+if [ "$DEV_DIGEST" = "$SHA_DIGEST" ]; then
+  echo "✅ Images are identical"
+else
+  echo "❌ Images differ (expected if commits are different)"
+fi
+```
+
+**Troubleshooting image builds:**
+
+If your PR doesn't produce an image:
+
+1. **Check org membership:** Only `complytime` org members' PRs build images
+   ```bash
+   # Verify you're listed as a member
+   curl -s https://api.github.com/orgs/complytime/members | jq -r '.[].login' | grep your-username
+   ```
+
+2. **Check if files changed:** Image builds only trigger when:
+   - Any `Containerfile*` changes
+   - Source code in `beacon-distro/`, `proofwatch/`, `truthbeam/` changes
+   - The workflow file (`.github/workflows/ci_publish_ghcr.yml`) changes
+
+3. **Check workflow run:** Go to **Actions** → **Publish Images to GHCR** and check for errors
+
+4. **Check CI status:** The workflow waits for CI to complete on PRs to main
+
+For complete details on the image publishing pipeline, see [docs/publish_image/publish_image.md](./publish_image/publish_image.md). For quick skopeo examples, see the [Container Image section in the README](../README.md#container-image).
+
+---
 
 ## Code Generation
 

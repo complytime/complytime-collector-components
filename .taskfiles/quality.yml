@@ -14,17 +14,14 @@ tasks:
   crapload:
     desc: Run CRAP and GazeCRAP analysis (human-readable) for all modules
     cmds:
-      - task: :dev:test
       - bash {{.ROOT_DIR}}/.taskfiles/scripts/go-module-runner.sh crapload
 
   crapload-baseline:
     desc: Generate baseline thresholds in .gaze/baseline.json for all modules
     cmds:
-      - task: :dev:test
       - bash {{.ROOT_DIR}}/.taskfiles/scripts/go-module-runner.sh crapload-baseline
 
   crapload-check:
     desc: Check for CRAP regressions against baseline for all modules
     cmds:
-      - task: :dev:test
       - bash {{.ROOT_DIR}}/.taskfiles/scripts/go-module-runner.sh crapload-check

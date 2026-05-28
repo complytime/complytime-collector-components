@@ -15,7 +15,7 @@ permissions:
   security-events: none
 
 env:
-  GO_VERSION: 1.26.3
+  GO_VERSION: 1.26
   GOLANGCI_LINT_VERSION: v2.12
   WEAVER_VERSION: v0.21.2
   UBI_BASE_PACKAGES: git-core
@@ -32,6 +32,8 @@ jobs:
         run: dnf install -y --nodocs ${{ env.UBI_BASE_PACKAGES }} jq
 
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       # Workaround: actions/checkout set-safe-directory does not reliably
       # persist in container jobs — the gitconfig it writes can land in a
       # HOME that subsequent tools don't read.
@@ -47,7 +49,7 @@ jobs:
         uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
         with:
           version: 3.x
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          repo-token: ${{ github.token }}
 
       - id: setup-workspace
         run: task workspace
@@ -75,6 +77,8 @@ jobs:
         run: dnf install -y --nodocs ${{ env.UBI_BASE_PACKAGES }}
 
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - name: Trust workspace directory
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
@@ -95,6 +99,8 @@ jobs:
         run: dnf install -y --nodocs ${{ env.UBI_BASE_PACKAGES }}
 
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - name: Trust workspace directory
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
@@ -105,7 +111,7 @@ jobs:
         uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
         with:
           version: 3.x
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          repo-token: ${{ github.token }}
 
       - name: Run all tests
         run: task test
@@ -122,6 +128,8 @@ jobs:
 
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - name: Trust workspace directory
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
@@ -133,7 +141,7 @@ jobs:
         uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
         with:
           version: 3.x
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          repo-token: ${{ github.token }}
 
       - name: Install weaver
         run: task tools:install-weaver
@@ -156,6 +164,8 @@ jobs:
         run: dnf install -y --nodocs ${{ env.UBI_BASE_PACKAGES }} xz
 
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - name: Trust workspace directory
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
@@ -166,7 +176,7 @@ jobs:
         uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
         with:
           version: 3.x
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          repo-token: ${{ github.token }}
 
       - name: Install weaver
         run: task tools:install-weaver
@@ -233,6 +243,8 @@ jobs:
           printf '[storage]\ndriver = "vfs"\n' > /etc/containers/storage.conf
 
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - name: Trust workspace directory
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
@@ -243,7 +255,7 @@ jobs:
         uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
         with:
           version: 3.x
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          repo-token: ${{ github.token }}
 
       - name: Setup workspace
         run: task workspace
@@ -258,3 +270,25 @@ jobs:
           name: integration-test-results
           path: .test-output/integration/
           retention-days: 7
+
+  publish-images:
+    name: Publish Container Images
+    needs: [golangci-lint, test, weave-check, verify-codegen, integration-test]
+    if: >-
+      github.event_name == 'push'
+      && github.ref == 'refs/heads/main'
+      && needs.golangci-lint.result == 'success'
+      && needs.test.result == 'success'
+      && needs.weave-check.result == 'success'
+      && needs.verify-codegen.result == 'success'
+      && needs.integration-test.result == 'success'
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+      id-token: write
+      actions: read
+      attestations: write
+    uses: ./.github/workflows/ci_publish_ghcr.yml
+    with:
+      trigger_source: "Local CI"

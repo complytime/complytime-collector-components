@@ -218,7 +218,9 @@ task version:check-go-mod-consistency  # Check OTel dependency consistency
 
 ### Container Image
 
-The beacon collector image is built from `beacon-distro/Containerfile.collector`:
+The beacon collector image is built from `beacon-distro/Containerfile.collector`.
+
+**Local builds:**
 
 ```bash
 # Build with default tag (complybeacon/collector:latest)
@@ -234,6 +236,47 @@ podman run --rm \
   complybeacon/collector:latest \
   --config=/etc/otel-collector.yaml
 ```
+
+**CI-built images:**
+
+Images are automatically published to GHCR:
+- **Main branch:** Merged changes → `sha-<commit>` (immutable)
+- **PRs (org members):** Open/update PR → `dev-pr<number>` (mutable) + `sha-<commit>`
+- **External PRs:** No images built (security)
+
+**Verify published images** (using [skopeo](https://github.com/containers/skopeo)):
+
+```bash
+# Install skopeo
+brew install skopeo  # macOS
+dnf install skopeo   # Fedora/RHEL/CentOS
+
+# Authenticate (required for private repos)
+# Create a token at https://github.com/settings/tokens with 'read:packages' scope
+skopeo login ghcr.io
+# Username: your-github-username
+# Password: paste your token (ghp_...)
+
+# List all tags
+skopeo list-tags docker://ghcr.io/complytime/complybeacon-beacon-distro
+
+# Inspect your PR image (replace 123 with your PR number)
+skopeo inspect docker://ghcr.io/complytime/complybeacon-beacon-distro:dev-pr123
+
+# Get just the digest
+skopeo inspect docker://ghcr.io/complytime/complybeacon-beacon-distro:dev-pr123 --format "{{.Digest}}"
+
+# Pull and use (also requires authentication for private images)
+podman login ghcr.io  # If not already logged in
+podman pull ghcr.io/complytime/complybeacon-beacon-distro:dev-pr123
+```
+
+**Troubleshooting:**
+- **"authentication required" error:** Login with `skopeo login ghcr.io` (token from [github.com/settings/tokens](https://github.com/settings/tokens))
+- **PR didn't build an image:** Check you're a `complytime` org member, changed relevant files, and view "Publish Images to GHCR" in Actions tab
+- **More details:** See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md#verifying-published-images)
+
+See [docs/publish_image/publish_image.md](./docs/publish_image/publish_image.md) for the complete publishing pipeline.
 
 **Grafana Dashboard:** To configure Loki as default datasource, see [deploy/terraform/README.md](./deploy/terraform/README.md).
 

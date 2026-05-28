@@ -1,0 +1,12 @@
+# Compose override for CI: pull a pre-built GHCR image instead of
+# building from source.  Used via:
+#   podman-compose -f compose.yaml -f compose.ghcr.yaml up
+#
+# Requires COLLECTOR_IMAGE to be set, e.g.:
+#   COLLECTOR_IMAGE=ghcr.io/complytime/complybeacon-beacon-distro:sha-abc123
+#
+# The image key replaces the build key from the base file during
+# compose merge, so the collector service pulls rather than builds.
+services:
+  collector:
+    image: ${COLLECTOR_IMAGE:?COLLECTOR_IMAGE must be set when using compose.ghcr.yaml}

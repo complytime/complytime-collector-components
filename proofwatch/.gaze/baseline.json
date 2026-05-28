@@ -4,7 +4,7 @@
       "package": "main",
       "function": "generateGemaraLog",
       "file": "cmd/validate-logs/main.go",
-      "line": 20,
+      "line": 21,
       "complexity": 1,
       "line_coverage": 0,
       "crap": 2
@@ -13,7 +13,7 @@
       "package": "main",
       "function": "generateOCSFLog",
       "file": "cmd/validate-logs/main.go",
-      "line": 48,
+      "line": 49,
       "complexity": 1,
       "line_coverage": 0,
       "crap": 2
@@ -22,7 +22,7 @@
       "package": "main",
       "function": "createLogFromAttributes",
       "file": "cmd/validate-logs/main.go",
-      "line": 77,
+      "line": 78,
       "complexity": 5,
       "line_coverage": 0,
       "crap": 30,
@@ -32,7 +32,7 @@
       "package": "main",
       "function": "simulateTruthBeamEnrichment",
       "file": "cmd/validate-logs/main.go",
-      "line": 112,
+      "line": 113,
       "complexity": 8,
       "line_coverage": 0,
       "crap": 72,
@@ -42,7 +42,7 @@
       "package": "main",
       "function": "convertToWeaverFormat",
       "file": "cmd/validate-logs/main.go",
-      "line": 177,
+      "line": 178,
       "complexity": 4,
       "line_coverage": 0,
       "crap": 20,
@@ -52,7 +52,7 @@
       "package": "main",
       "function": "valueToString",
       "file": "cmd/validate-logs/main.go",
-      "line": 210,
+      "line": 211,
       "complexity": 8,
       "line_coverage": 0,
       "crap": 72,
@@ -62,7 +62,7 @@
       "package": "main",
       "function": "stringPtr",
       "file": "cmd/validate-logs/main.go",
-      "line": 235,
+      "line": 236,
       "complexity": 1,
       "line_coverage": 0,
       "crap": 2
@@ -71,11 +71,11 @@
       "package": "main",
       "function": "main",
       "file": "cmd/validate-logs/main.go",
-      "line": 239,
-      "complexity": 12,
+      "line": 240,
+      "complexity": 18,
       "line_coverage": 0,
-      "crap": 156,
-      "fix_strategy": "add_tests"
+      "crap": 342,
+      "fix_strategy": "decompose_and_test"
     },
     {
       "package": "proofwatch",
@@ -117,7 +117,7 @@
       "package": "proofwatch",
       "function": "(GemaraEvidence).ToJSON",
       "file": "gemara.go",
-      "line": 21,
+      "line": 19,
       "complexity": 1,
       "line_coverage": 0,
       "crap": 2
@@ -126,16 +126,16 @@
       "package": "proofwatch",
       "function": "(GemaraEvidence).Attributes",
       "file": "gemara.go",
-      "line": 25,
-      "complexity": 3,
+      "line": 23,
+      "complexity": 4,
       "line_coverage": 100,
-      "crap": 3
+      "crap": 4
     },
     {
       "package": "proofwatch",
       "function": "(GemaraEvidence).Timestamp",
       "file": "gemara.go",
-      "line": 46,
+      "line": 47,
       "complexity": 2,
       "line_coverage": 100,
       "crap": 2
@@ -312,9 +312,9 @@
   ],
   "summary": {
     "total_functions": 30,
-    "avg_complexity": 3.6,
+    "avg_complexity": 3.8333333333333335,
     "avg_line_coverage": 68.42592592592592,
-    "avg_crap": 14.172888535236627,
+    "avg_crap": 20.406221868569958,
     "crapload": 6,
     "crap_threshold": 15,
     "gaze_crapload": 0,
@@ -325,25 +325,26 @@
       "Q1_Safe": 10
     },
     "fix_strategy_counts": {
-      "add_tests": 5,
-      "decompose": 1
+      "add_tests": 4,
+      "decompose": 1,
+      "decompose_and_test": 1
     },
     "worst_crap": [
       {
         "package": "main",
         "function": "main",
         "file": "cmd/validate-logs/main.go",
-        "line": 239,
-        "complexity": 12,
+        "line": 240,
+        "complexity": 18,
         "line_coverage": 0,
-        "crap": 156,
-        "fix_strategy": "add_tests"
+        "crap": 342,
+        "fix_strategy": "decompose_and_test"
       },
       {
         "package": "main",
         "function": "simulateTruthBeamEnrichment",
         "file": "cmd/validate-logs/main.go",
-        "line": 112,
+        "line": 113,
         "complexity": 8,
         "line_coverage": 0,
         "crap": 72,
@@ -353,7 +354,7 @@
         "package": "main",
         "function": "valueToString",
         "file": "cmd/validate-logs/main.go",
-        "line": 210,
+        "line": 211,
         "complexity": 8,
         "line_coverage": 0,
         "crap": 72,
@@ -363,7 +364,7 @@
         "package": "main",
         "function": "createLogFromAttributes",
         "file": "cmd/validate-logs/main.go",
-        "line": 77,
+        "line": 78,
         "complexity": 5,
         "line_coverage": 0,
         "crap": 30,
@@ -373,7 +374,7 @@
         "package": "main",
         "function": "convertToWeaverFormat",
         "file": "cmd/validate-logs/main.go",
-        "line": 177,
+        "line": 178,
         "complexity": 4,
         "line_coverage": 0,
         "crap": 20,
@@ -444,19 +445,10 @@
     ],
     "recommended_actions": [
       {
-        "function": "main",
-        "package": "main",
-        "file": "/home/maburgha/GIT/ProdSec/complytime-collector-components/proofwatch/cmd/validate-logs/main.go",
-        "line": 239,
-        "fix_strategy": "add_tests",
-        "crap": 156,
-        "complexity": 12
-      },
-      {
         "function": "simulateTruthBeamEnrichment",
         "package": "main",
-        "file": "/home/maburgha/GIT/ProdSec/complytime-collector-components/proofwatch/cmd/validate-logs/main.go",
-        "line": 112,
+        "file": "cmd/validate-logs/main.go",
+        "line": 113,
         "fix_strategy": "add_tests",
         "crap": 72,
         "complexity": 8
@@ -464,8 +456,8 @@
       {
         "function": "valueToString",
         "package": "main",
-        "file": "/home/maburgha/GIT/ProdSec/complytime-collector-components/proofwatch/cmd/validate-logs/main.go",
-        "line": 210,
+        "file": "cmd/validate-logs/main.go",
+        "line": 211,
         "fix_strategy": "add_tests",
         "crap": 72,
         "complexity": 8
@@ -473,8 +465,8 @@
       {
         "function": "createLogFromAttributes",
         "package": "main",
-        "file": "/home/maburgha/GIT/ProdSec/complytime-collector-components/proofwatch/cmd/validate-logs/main.go",
-        "line": 77,
+        "file": "cmd/validate-logs/main.go",
+        "line": 78,
         "fix_strategy": "add_tests",
         "crap": 30,
         "complexity": 5
@@ -482,16 +474,25 @@
       {
         "function": "convertToWeaverFormat",
         "package": "main",
-        "file": "/home/maburgha/GIT/ProdSec/complytime-collector-components/proofwatch/cmd/validate-logs/main.go",
-        "line": 177,
+        "file": "cmd/validate-logs/main.go",
+        "line": 178,
         "fix_strategy": "add_tests",
         "crap": 20,
         "complexity": 4
       },
       {
+        "function": "main",
+        "package": "main",
+        "file": "cmd/validate-logs/main.go",
+        "line": 240,
+        "fix_strategy": "decompose_and_test",
+        "crap": 342,
+        "complexity": 18
+      },
+      {
         "function": "mapEnforcementStatus",
         "package": "proofwatch",
-        "file": "/home/maburgha/GIT/ProdSec/complytime-collector-components/proofwatch/ocsf.go",
+        "file": "ocsf.go",
         "line": 110,
         "fix_strategy": "decompose",
         "crap": 16,

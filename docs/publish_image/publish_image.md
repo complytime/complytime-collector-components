@@ -7,10 +7,17 @@ This guide explains how to publish in GHCR and promote in Quay for container ima
 The publishing process values **security and automation** to provide predictable, low-cost image releases.
 
 ```
-Main Branch Push  →  Build + Scan + Sign  →  GHCR
+Main Branch Push  →  Build + Scan + Sign  →  GHCR (sha-<commit>)
                                               ↓
-Release Tag (v*)  →  Verify + Promote     →  Quay.io
+Release Tag (v*)  →  Verify + Promote     →  Quay.io (v1.2.3)
+
+PR from Org Member  →  Build + Scan + Sign  →  GHCR (dev-pr<number>)
 ```
+
+**Tagging Strategy:**
+- **Production builds** (main branch): `sha-<commit>` (immutable)
+- **Dev builds** (org member PRs): `dev-pr<number>` + `sha-<commit>` (mutable + immutable)
+- **External PRs**: No images built (security)
 
 ---
 
@@ -93,6 +100,53 @@ Release Tag (v*)  →  Verify + Promote     →  Quay.io
 
 ---
 
+## PR Dev Build Pipeline (Org Members)
+
+For pull requests from organization members, the same security pipeline runs to validate Containerfile changes before merge.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                       PULL REQUEST (from org member)                            │
+└─────────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+  ╔═══════════════════════════════════════════════════════════════════════════╗
+  ║  STAGE 0: ORG MEMBERSHIP CHECK                                            ║
+  ║  ┌─────────────────────────────────────────────────────────────────────┐  ║
+  ║  │  • Verify PR author is a complytime org member                      │  ║
+  ║  │  • External contributors → skip image build (security)              │  ║
+  ║  │  • Org members → proceed to build                                   │  ║
+  ║  │  • Compute tag: dev-pr<number>                                      │  ║
+  ║  └─────────────────────────────────────────────────────────────────────┘  ║
+  ╚═══════════════════════════════════════════════════════════════════════════╝
+                                      │
+                                      ▼
+                      (same pipeline as main branch)
+                      scan-source → build → scan-image → sign → test
+                                      │
+                                      ▼
+                      ┌───────────────────────────────┐
+                      │  ✅ Dev Image Ready in GHCR   │
+                      │  Primary: dev-pr123           │
+                      │  Immutable: sha-abc123        │
+                      │  + signature + SBOM           │
+                      │  + provenance + vuln report   │
+                      └───────────────────────────────┘
+```
+
+**Security Model:**
+- Only **organization members** can trigger image builds on PRs
+- External contributors' PRs **do not build images** (prevents resource abuse and supply chain attacks)
+- Same security scanning and signing as production builds
+- Images published to GHCR with `dev-pr<number>` tag (mutable) and `sha-<commit>` tag (immutable)
+
+**Use Case:**
+- Validate Containerfile changes before merge
+- Test integration with dev images in local or staging environments
+- Share dev images with team members for review
+
+---
+
 ## Release Pipeline (Promote to Production)
 
 ```
@@ -135,15 +189,58 @@ Release Tag (v*)  →  Verify + Promote     →  Quay.io
 
 ## Publishing Images
 
-Images are automatically built and published when changes are pushed to the `main` branch.
+Images are automatically built and published in two scenarios:
+
+### 1. Production Builds (Main Branch)
+
+When changes are merged to `main`, the workflow:
+- Waits for CI to complete successfully
+- Checks if Containerfiles changed
+- If yes: builds, scans, signs, and publishes to GHCR with tag `sha-<commit>`
+- Runs integration tests against the published image
+
+**Trigger:** Push to `main` branch after CI passes
+
+### 2. Dev Builds (Pull Requests)
+
+When an **org member** opens or updates a PR that touches:
+- Any `Containerfile*`
+- Source code in `beacon-distro/`, `proofwatch/`, `truthbeam/`
+- The workflow file itself
+
+The workflow:
+- Verifies PR author is a `complytime` org member
+- If yes: builds, scans, signs, and publishes to GHCR with tags:
+  - `dev-pr<number>` (mutable, updates on each push)
+  - `sha-<commit>` (immutable)
+- Runs integration tests against the published image
+
+**Security:** External contributors' PRs **do not** trigger image builds.
+
+**Example:**
+```bash
+# PR #123 opened by org member
+# First push (commit abc123) creates:
+#   - dev-pr123 → sha256:abc...
+#   - sha-abc123 → sha256:abc...
+#
+# Second push (commit def456) updates:
+#   - dev-pr123 → sha256:def...  (mutable, now points to new image)
+#   - sha-def456 → sha256:def...  (new immutable tag)
+#   - sha-abc123 → sha256:abc...  (old immutable tag still exists)
+```
 
 ### Manual Trigger
 
-To manually trigger a build (e.g., for base image updates):
+To manually trigger a build (e.g., for base image updates or testing):
 
 1. Go to **Actions** → **Publish Images to GHCR**
 2. Click **Run workflow**
-3. Optionally check **Force rebuild without cache**
+3. Select branch (usually `main`)
+4. Optionally check **Force rebuild without cache**
+5. Click **Run workflow**
+
+The manual trigger uses the same security pipeline (scan, sign, test) as automatic builds.
 
 ## Promoting to Quay.io
 
@@ -180,10 +277,10 @@ Releases are created as needed. Maintainers coordinate releases via issues or di
 
 Add these secrets in **Settings** → **Secrets and variables** → **Actions**:
 
-| Secret | Required For | Description |
-|--------|--------------|-------------|
-| `QUAY_USERNAME` | Promotion | Quay.io robot account username |
-| `QUAY_PASSWORD` | Promotion | Quay.io robot account token |
+| Secret          | Required For | Description                    |
+|-----------------|--------------|--------------------------------|
+| `QUAY_USERNAME` | Promotion    | Quay.io robot account username |
+| `QUAY_PASSWORD` | Promotion    | Quay.io robot account token    |
 
 > **Note:** GHCR uses `GITHUB_TOKEN` automatically, no additional secrets needed.
 
@@ -195,27 +292,168 @@ In **Settings** → **Branches** → **main**:
 
 ## Verifying Images
 
-After publishing, verify images are properly signed:
+### Using Skopeo (Recommended for Quick Checks)
+
+[Skopeo](https://github.com/containers/skopeo) is a command-line tool for inspecting and copying container images **without pulling them**. This is faster and more efficient than pulling images with `podman` or `docker` when you just want to verify publication.
+
+**Install Skopeo:**
+
+```bash
+# macOS
+brew install skopeo
+
+# Fedora/RHEL/CentOS
+dnf install skopeo
+
+# Ubuntu/Debian
+apt-get install skopeo
+
+# Or use podman alias (skopeo is bundled with podman)
+alias skopeo='podman run --rm quay.io/skopeo/stable'
+```
+
+**List all tags:**
+
+```bash
+# List all tags for beacon-distro
+skopeo list-tags docker://ghcr.io/complytime/complybeacon-beacon-distro
+```
+
+**Inspect a specific image:**
+
+```bash
+# Inspect production image (main branch)
+skopeo inspect docker://ghcr.io/complytime/complybeacon-beacon-distro:sha-0da6ac5
+
+# Inspect dev image (PR build)
+skopeo inspect docker://ghcr.io/complytime/complybeacon-beacon-distro:dev-pr123
+
+# Get just the digest
+skopeo inspect docker://ghcr.io/complytime/complybeacon-beacon-distro:dev-pr123 \
+  --format "{{.Digest}}"
+
+# Get creation timestamp
+skopeo inspect docker://ghcr.io/complytime/complybeacon-beacon-distro:dev-pr123 \
+  --format "{{.Created}}"
+```
+
+**Authentication for private images:**
+
+If the repository is private, authenticate first:
+
+```bash
+# Login with GitHub Personal Access Token (requires 'read:packages' scope)
+skopeo login ghcr.io
+# Username: your-github-username
+# Password: ghp_yourPersonalAccessToken
+
+# Or use environment variable
+echo $GITHUB_TOKEN | skopeo login ghcr.io -u your-github-username --password-stdin
+```
+
+**Copy image between registries:**
+
+```bash
+# Copy dev image to local testing registry
+skopeo copy \
+  docker://ghcr.io/complytime/complybeacon-beacon-distro:dev-pr123 \
+  docker://localhost:5000/beacon-distro:test
+```
+
+### Verifying Signatures (Cosign)
+
+After confirming the image exists with `skopeo`, verify cryptographic signatures:
 
 ```bash
 # Verify GHCR image (beacon-distro)
-cosign verify ghcr.io/complytime/complybeacon-beacon-distro \
+cosign verify ghcr.io/complytime/complybeacon-beacon-distro:sha-0da6ac5 \
   --certificate-identity-regexp='https://github.com/complytime/.*' \
   --certificate-oidc-issuer=https://token.actions.githubusercontent.com
 
-# Verify Quay image (beacon-distro)
-cosign verify quay.io/continuouscompliance/complytime-beacon-distro \
+# Verify dev image
+cosign verify ghcr.io/complytime/complybeacon-beacon-distro:dev-pr123 \
   --certificate-identity-regexp='https://github.com/complytime/.*' \
   --certificate-oidc-issuer=https://token.actions.githubusercontent.com
 
+# Verify Quay image (production release)
+cosign verify quay.io/continuouscompliance/complytime-beacon-distro:v1.2.3 \
+  --certificate-identity-regexp='https://github.com/complytime/.*' \
+  --certificate-oidc-issuer=https://token.actions.githubusercontent.com
 ```
+
+### Common Verification Scenarios
+
+**Scenario 1: Check if my PR's image was published**
+
+```bash
+# Find your PR number (e.g., PR #123)
+# Then check for the dev tag
+skopeo inspect docker://ghcr.io/complytime/complybeacon-beacon-distro:dev-pr123
+```
+
+**Scenario 2: Verify main branch image exists for a commit**
+
+```bash
+# Get the short commit SHA (e.g., 0da6ac5)
+git rev-parse --short HEAD
+
+# Inspect the image
+skopeo inspect docker://ghcr.io/complytime/complybeacon-beacon-distro:sha-0da6ac5
+```
+
+**Scenario 3: Check when an image was last updated**
+
+```bash
+# Dev images are mutable and update on each PR push
+skopeo inspect docker://ghcr.io/complytime/complybeacon-beacon-distro:dev-pr123 \
+  --format "{{.Created}}"
+```
+
+**Scenario 4: Verify dev and production images are identical**
+
+```bash
+# Compare digests (should match if built from same commit)
+skopeo inspect docker://ghcr.io/complytime/complybeacon-beacon-distro:dev-pr123 \
+  --format "{{.Digest}}"
+skopeo inspect docker://ghcr.io/complytime/complybeacon-beacon-distro:sha-abc123 \
+  --format "{{.Digest}}"
+```
+
+**Troubleshooting:**
+
+| Error                                        | Cause                                    | Solution                                     |
+|----------------------------------------------|------------------------------------------|----------------------------------------------|
+| `manifest unknown`                           | Image doesn't exist                      | Check tag name, verify workflow succeeded    |
+| `unauthorized`                               | Authentication required                  | Run `skopeo login ghcr.io` with GitHub token |
+| `requested access to the resource is denied` | Not an org member or missing permissions | Verify org membership, check token scopes    |
+| `connection refused`                         | Network/registry issue                   | Check network, retry after a moment          |
+
+
 
 ## Quick Reference
 
-| Task | Workflow | Trigger |
-|------|----------|---------|
-| Build & publish to GHCR | [`ci_publish_ghcr.yml`](../.github/workflows/ci_publish_ghcr.yml) | Push to `main` |
-| Promote to Quay.io | [`ci_publish_quay.yml`](../.github/workflows/ci_publish_quay.yml)| Push tag `v*.*.*` |
+| Task                                 | Workflow                                                          | Trigger                   | Tags                             |
+|--------------------------------------|-------------------------------------------------------------------|---------------------------|----------------------------------|
+| Build & publish to GHCR (production) | [`ci_publish_ghcr.yml`](../.github/workflows/ci_publish_ghcr.yml) | Push to `main` (after CI) | `sha-<commit>`                   |
+| Build & publish to GHCR (dev)        | [`ci_publish_ghcr.yml`](../.github/workflows/ci_publish_ghcr.yml) | PR from org member        | `dev-pr<number>`, `sha-<commit>` |
+| Promote to Quay.io                   | [`ci_publish_quay.yml`](../.github/workflows/ci_publish_quay.yml) | Push tag `v*.*.*`         | `v1.2.3`, `sha-<commit>`         |
+
+**Verification Commands:**
+
+```bash
+# List all tags
+skopeo list-tags docker://ghcr.io/complytime/complybeacon-beacon-distro
+
+# Inspect specific image
+skopeo inspect docker://ghcr.io/complytime/complybeacon-beacon-distro:TAG
+
+# Verify signature
+cosign verify ghcr.io/complytime/complybeacon-beacon-distro:TAG \
+  --certificate-identity-regexp='https://github.com/complytime/.*' \
+  --certificate-oidc-issuer=https://token.actions.githubusercontent.com
+```
 
 ## More Information
+
+- [README Container Image Section](../../README.md#container-image) — Quick skopeo examples
 - [Sigstore Documentation](https://docs.sigstore.dev/) — Keyless signing details

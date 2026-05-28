@@ -5,6 +5,10 @@ vars:
   OPENSSL_CNF: "{{.ROOT_DIR}}/configs/openssl.cnf"
   IMAGE: '{{.IMAGE | default "complybeacon/collector"}}'
   TAG: '{{.TAG | default "latest"}}'
+  # Environment-based image selection
+  USE_GHCR_IMAGE: '{{.USE_GHCR_IMAGE | default "false"}}'
+  GHCR_IMAGE: '{{.GHCR_IMAGE | default "ghcr.io/complytime/complybeacon-beacon-distro"}}'
+  GHCR_TAG: '{{.GHCR_TAG | default (env "GITHUB_SHA" | printf "sha-%s")}}'
 
 tasks:
   default:
@@ -12,8 +16,11 @@ tasks:
     cmd: task infra --list
 
   build:
-    desc: Build the beacon collector container image
+    desc: Build the beacon collector container image (only if not using GHCR)
+    status:
+      - test "{{.USE_GHCR_IMAGE}}" = "true"
     cmds:
+      - 'echo "Building local image: {{.IMAGE}}:{{.TAG}}"'
       - task: :dev:deps
       - task: :version:sync
       - podman build -f beacon-distro/Containerfile.collector -t {{.IMAGE}}:{{.TAG}} {{.ROOT_DIR}}
@@ -59,12 +66,43 @@ tasks:
       - echo "--- Certificates generated successfully ---"
 
   deploy:
-    desc: Deploy infra (auto-syncs OTel versions first)
+    desc: Deploy infra (builds image unless using GHCR)
     cmds:
       - task: :version:sync
-      - podman-compose -f compose.yaml up
+      - task: build
+        vars:
+          { USE_GHCR_IMAGE: "{{.USE_GHCR_IMAGE}}", GHCR_TAG: "{{.GHCR_TAG}}" }
+      - |
+        if [[ "{{.USE_GHCR_IMAGE}}" == "true" ]]; then
+          echo "Using GHCR image: {{.GHCR_IMAGE}}:{{.GHCR_TAG}}"
+          COLLECTOR_IMAGE={{.GHCR_IMAGE}}:{{.GHCR_TAG}} podman-compose -f compose.yaml -f compose.ghcr.yaml up
+        else
+          echo "Using locally built image"
+          podman-compose -f compose.yaml up
+        fi
 
   undeploy:
     desc: Undeploy container stack — DESTRUCTIVE
     prompt: This will tear down the container stack. Are you sure?
     cmd: podman-compose -f compose.yaml down -v
+
+  deploy-with-ghcr:
+    desc: Deploy using GHCR image (for CI/testing)
+    vars:
+      GHCR_TAG_INPUT: "{{.GHCR_TAG_INPUT | default .GHCR_TAG}}"
+    cmds:
+      - task: deploy
+        vars:
+          USE_GHCR_IMAGE: "true"
+          GHCR_TAG: "{{.GHCR_TAG_INPUT}}"
+
+  test-with-ghcr:
+    desc: Run tests using GHCR image
+    vars:
+      GHCR_TAG_INPUT: "{{.GHCR_TAG_INPUT | default .GHCR_TAG}}"
+    cmds:
+      - task: deploy-with-ghcr
+        vars:
+          GHCR_TAG_INPUT: "{{.GHCR_TAG_INPUT}}"
+      - task: :dev:test
+      - defer: { task: undeploy }

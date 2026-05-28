@@ -3,7 +3,7 @@ services:
   loki:
     image: "docker.io/grafana/loki:3.5.1"
     ports:
-      - "3100:3100"
+      - "${LOKI_PORT:-3100}:3100"
     volumes:
       - ./configs/loki.yaml:/etc/loki/local-config.yaml:z
     command: -config.file=/etc/loki/local-config.yaml
@@ -17,7 +17,7 @@ services:
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_BASIC_ENABLED=false
     ports:
-      - "3000:3000/tcp"
+      - "${GRAFANA_PORT:-3000}:3000/tcp"
     entrypoint:
       - sh
       - -euc
@@ -45,8 +45,8 @@ services:
       - RUSTFS_ACCESS_KEY=${AWS_ACCESS_KEY_ID:-rustfsadmin}
       - RUSTFS_SECRET_KEY=${AWS_SECRET_ACCESS_KEY:-rustfsadmin}
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "${RUSTFS_PORT:-9000}:9000"
+      - "${RUSTFS_CONSOLE_PORT:-9001}:9001"
     volumes:
       - rustfs-data:/data
       - rustfs-logs:/logs
@@ -65,8 +65,8 @@ services:
       - RUSTFS_CERT_FILE=/certs/rustfs.crt
       - RUSTFS_CERT_KEY_FILE=/certs/rustfs.key
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "${RUSTFS_PORT:-9000}:9000"
+      - "${RUSTFS_CONSOLE_PORT:-9001}:9001"
     volumes:
       - rustfs-data:/data
       - rustfs-logs:/logs
@@ -124,6 +124,7 @@ services:
     restart: "no"
 
   compass:
+    image: complybeacon/mock-compass:latest
     build:
       context: ./tests/integration/mock-compass
       dockerfile: Containerfile
@@ -132,7 +133,7 @@ services:
       - ./tests/integration/fixtures/compass-responses.json:/fixtures/compass-responses.json:z
       - ./certs:/certs:z
     ports:
-      - "8081:8081"
+      - "${COMPASS_PORT:-8081}:8081"
     healthcheck:
       test: ["CMD", "/mock-compass", "-healthcheck"]
       interval: 5s
@@ -140,6 +141,7 @@ services:
       retries: 5
 
   collector:
+    image: complybeacon/collector:latest
     build:
       context: .
       dockerfile: beacon-distro/Containerfile.collector
@@ -158,10 +160,11 @@ services:
       - ./data:/data:z,U
       - ./certs:/certs:z
     ports:
-      - "4317:4317"
-      - "8088:8088"
+      - "${OTLP_PORT:-4317}:4317"
+      - "${WEBHOOK_PORT:-8088}:8088"
 
   collector-tls:
+    image: complybeacon/collector:latest
     build:
       context: .
       dockerfile: beacon-distro/Containerfile.collector
@@ -181,8 +184,8 @@ services:
       - ./data:/data:z,U
       - ./certs:/certs:z
     ports:
-      - "4317:4317"
-      - "8088:8088"
+      - "${OTLP_PORT:-4317}:4317"
+      - "${WEBHOOK_PORT:-8088}:8088"
 
 volumes:
   rustfs-data:
