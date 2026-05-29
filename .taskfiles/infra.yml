@@ -17,13 +17,22 @@ tasks:
 
   build:
     desc: Build the beacon collector container image (only if not using GHCR)
+    vars:
+      # Derive container runtime from COMPOSE_CMD env var (docker compose -> docker, else podman)
+      RUNTIME:
+        sh: |
+          if [[ "${COMPOSE_CMD:-}" == "docker"* ]]; then
+            echo "docker"
+          else
+            echo "podman"
+          fi
     status:
       - test "{{.USE_GHCR_IMAGE}}" = "true"
     cmds:
-      - 'echo "Building local image: {{.IMAGE}}:{{.TAG}}"'
+      - 'echo "Building local image: {{.IMAGE}}:{{.TAG}} (runtime: {{.RUNTIME}})"'
       - task: :dev:deps
       - task: :version:sync
-      - podman build -f beacon-distro/Containerfile.collector -t {{.IMAGE}}:{{.TAG}} {{.ROOT_DIR}}
+      - "{{.RUNTIME}} build -f beacon-distro/Containerfile.collector -t {{.IMAGE}}:{{.TAG}} {{.ROOT_DIR}}"
 
   generate-self-signed-cert:
     desc: Generate self-signed certificates for compass, truthbeam, and rustfs

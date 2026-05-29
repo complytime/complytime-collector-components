@@ -18,29 +18,17 @@ env:
   GO_VERSION: 1.26
   GOLANGCI_LINT_VERSION: v2.12
   WEAVER_VERSION: v0.21.2
-  UBI_BASE_PACKAGES: git-core
 
 jobs:
   detect-modules:
     runs-on: ubuntu-latest
-    container:
-      image: registry.access.redhat.com/ubi10/ubi:10.2@sha256:f56ffeed0a79e53594be6164adfb199a4c4ed8925098f5905b0875f0edb46aa1
     outputs:
       modules: "${{ steps.set-modules.outputs.modules }}"
     steps:
-      - name: Install prerequisites
-        run: dnf install -y --nodocs ${{ env.UBI_BASE_PACKAGES }} jq
-
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-      # Workaround: actions/checkout set-safe-directory does not reliably
-      # persist in container jobs — the gitconfig it writes can land in a
-      # HOME that subsequent tools don't read.
-      # See: https://github.com/actions/checkout/issues/1048
-      #      https://github.com/actions/runner/issues/2033
-      - name: Trust workspace directory
-        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
           go-version: "${{ env.GO_VERSION }}"
@@ -57,11 +45,78 @@ jobs:
         run: |
           echo "modules=$(go work edit -json go.work | jq -c '[.Use[].DiskPath | select(. == "./proofwatch" or . == "./truthbeam")]')" >> "${GITHUB_OUTPUT}"
 
+  detect-layers:
+    name: Detect Integration Layers
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      run_storage: ${{ steps.filter.outputs.storage }}
+      run_enrichment: ${{ steps.filter.outputs.enrichment }}
+      layers: ${{ steps.build-matrix.outputs.layers }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Detect changed paths
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+        id: filter
+        with:
+          filters: |
+            storage:
+              - 'configs/collector-storage*.yaml'
+              - 'tests/integration/storage/**'
+            enrichment:
+              - 'configs/collector-enrichment.yaml'
+              - 'tests/integration/enrichment/**'
+              - 'tests/integration/mock-compass/**'
+            all:
+              - 'truthbeam/**'
+              - 'beacon-distro/**'
+              - 'compose.yaml'
+              - 'compose.ghcr.yaml'
+              - 'configs/collector-base.yaml'
+              - 'configs/loki*.yaml'
+              - 'proofwatch/**'
+              - 'tests/integration/helpers.go'
+              - 'tests/integration/fixtures/**'
+              - '.taskfiles/integration.yml'
+
+      - name: Build layer list
+        id: build-matrix
+        env:
+          ALL: ${{ steps.filter.outputs.all }}
+          STORAGE: ${{ steps.filter.outputs.storage }}
+          ENRICHMENT: ${{ steps.filter.outputs.enrichment }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          # Always run all layers on push to main (gates GHCR publish)
+          if [ "$EVENT" = "push" ]; then
+            echo 'layers=["base","storage","enrichment"]' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Base always runs
+          LAYERS='["base"'
+
+          # Add storage if storage-specific or shared code changed
+          if [ "$ALL" = "true" ] || [ "$STORAGE" = "true" ]; then
+            LAYERS="${LAYERS},\"storage\""
+          fi
+
+          # Add enrichment if enrichment-specific or shared code changed
+          if [ "$ALL" = "true" ] || [ "$ENRICHMENT" = "true" ]; then
+            LAYERS="${LAYERS},\"enrichment\""
+          fi
+
+          LAYERS="${LAYERS}]"
+          echo "layers=${LAYERS}" >> "$GITHUB_OUTPUT"
+          echo "Layers to test: ${LAYERS}"
+
   golangci-lint:
     needs: detect-modules
     runs-on: ubuntu-latest
-    container:
-      image: registry.access.redhat.com/ubi10/ubi:10.2@sha256:f56ffeed0a79e53594be6164adfb199a4c4ed8925098f5905b0875f0edb46aa1
     strategy:
       matrix:
         modules: "${{ fromJSON(needs.detect-modules.outputs.modules) }}"
@@ -73,17 +128,14 @@ jobs:
       # never shells out to git for build metadata.
       GOFLAGS: "-buildvcs=false"
     steps:
-      - name: Install prerequisites
-        run: dnf install -y --nodocs ${{ env.UBI_BASE_PACKAGES }}
-
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-      - name: Trust workspace directory
-        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
           go-version: "${{ env.GO_VERSION }}"
+
       - name: golangci-lint "${{ matrix.modules }}"
         uses: golangci/golangci-lint-action@82606bf257cbaff209d206a39f5134f0cfbfd2ee # v9.2.1
         with:
@@ -92,17 +144,11 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
-    container:
-      image: registry.access.redhat.com/ubi10/ubi:10.2@sha256:f56ffeed0a79e53594be6164adfb199a4c4ed8925098f5905b0875f0edb46aa1
     steps:
-      - name: Install prerequisites
-        run: dnf install -y --nodocs ${{ env.UBI_BASE_PACKAGES }}
-
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-      - name: Trust workspace directory
-        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
           go-version: "${{ env.GO_VERSION }}"
@@ -118,20 +164,12 @@ jobs:
 
   weave-check:
     runs-on: ubuntu-latest
-    container:
-      image: registry.access.redhat.com/ubi10/ubi:10.2@sha256:f56ffeed0a79e53594be6164adfb199a4c4ed8925098f5905b0875f0edb46aa1
     permissions:
       contents: read
     steps:
-      - name: Install prerequisites
-        run: dnf install -y --nodocs ${{ env.UBI_BASE_PACKAGES }} xz
-
-      - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-      - name: Trust workspace directory
-        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
@@ -157,17 +195,11 @@ jobs:
 
   verify-codegen:
     runs-on: ubuntu-latest
-    container:
-      image: registry.access.redhat.com/ubi10/ubi:10.2@sha256:f56ffeed0a79e53594be6164adfb199a4c4ed8925098f5905b0875f0edb46aa1
     steps:
-      - name: Install prerequisites
-        run: dnf install -y --nodocs ${{ env.UBI_BASE_PACKAGES }} xz
-
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-      - name: Trust workspace directory
-        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
           go-version: "${{ env.GO_VERSION }}"
@@ -218,35 +250,30 @@ jobs:
 
   integration-test:
     runs-on: ubuntu-latest
-    container:
-      image: registry.access.redhat.com/ubi10/ubi:10.2@sha256:f56ffeed0a79e53594be6164adfb199a4c4ed8925098f5905b0875f0edb46aa1
-      # SECURITY: --privileged required for container-in-container scenario
-      # GitHub Actions containers use overlayfs which conflicts with Podman's
-      # default overlay driver. VFS storage + privileged mode enables Podman
-      # to manage container networking and storage inside the CI container.
-      options: --privileged
-    needs: [test]
+    needs: [test, detect-layers]
     steps:
-      - name: Install prerequisites
+      # Reclaim disk space occupied by pre-installed software that the
+      # integration tests do not need.  Container images (Loki, RustFS,
+      # collector build stage) are large; freeing ~25 GB avoids "no space
+      # left on device" failures during docker build / docker compose pull.
+      - name: Free disk space
         run: |
-          dnf install -y --nodocs ${{ env.UBI_BASE_PACKAGES }} podman openssl python3-pip python3-pyyaml perl
-          pip install --require-hashes --no-deps -r /dev/stdin <<'EOF'
-          python-dotenv==1.2.2 --hash=sha256:1d8214789a24de455a8b8bd8ae6fe3c6b69a5e3d64aa8a8e5d68e694bbcb285a
-          podman-compose==1.5.0 --hash=sha256:f0b9d35f4da1b309172adf208a5cb7a882b532a834c2202666c1988b6f147546
-          EOF
-
-      # Podman's default overlay driver cannot stack on the overlayfs
-      # backing the GitHub Actions container job — use vfs instead.
-      - name: Configure Podman storage for nested containers
-        run: |
-          mkdir -p /etc/containers
-          printf '[storage]\ndriver = "vfs"\n' > /etc/containers/storage.conf
+          echo "=== Disk before cleanup ==="
+          df -h /
+          sudo rm -rf /usr/local/lib/android \
+                      /usr/share/dotnet \
+                      /opt/ghc \
+                      /usr/local/share/boost \
+                      /usr/local/.ghcup \
+                      /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force || true
+          echo "=== Disk after cleanup ==="
+          df -h /
 
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-      - name: Trust workspace directory
-        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
           go-version: "${{ env.GO_VERSION }}"
@@ -261,7 +288,25 @@ jobs:
         run: task workspace
 
       - name: Run integration tests
-        run: task integration:test
+        env:
+          LAYERS: ${{ needs.detect-layers.outputs.layers }}
+          # Use docker compose (pre-installed on ubuntu-latest) instead of
+          # podman-compose.  This avoids pip-installing podman-compose and
+          # eliminates the VFS storage driver overhead that caused disk
+          # exhaustion in the previous container-in-container setup.
+          COMPOSE_CMD: "docker compose"
+          # Use standard ports (matches ci_publish_ghcr.yml)
+          WEBHOOK_PORT: "8088"
+          LOKI_PORT: "3100"
+          RUSTFS_PORT: "9000"
+          COMPASS_PORT: "8081"
+          CI: "true"
+        run: |
+          for layer in $(echo "$LAYERS" | jq -r '.[]'); do
+            echo "::group::Integration test: ${layer}"
+            task integration:test PROFILE="${layer}"
+            echo "::endgroup::"
+          done
 
       - name: Upload test results
         if: failure()
@@ -276,7 +321,7 @@ jobs:
     needs: [golangci-lint, test, weave-check, verify-codegen, integration-test]
     if: >-
       github.event_name == 'push'
-      && github.ref == 'refs/heads/main'
+      && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
       && needs.golangci-lint.result == 'success'
       && needs.test.result == 'success'
       && needs.weave-check.result == 'success'

@@ -4,9 +4,9 @@
 # ONLY runs AFTER all CI tests pass to ensure image quality.
 #
 # Pipeline Flow:
-#   Production (main branch):
-#     wait-for-ci → scan-source → build-beacon-distro → scan-image-beacon-distro → sign-beacon-distro → test-published-image
-#   Dev (PRs from org members):
+#   Non-PR callers (push via workflow_call, schedule, workflow_dispatch):
+#     scan-source → build-beacon-distro → scan-image-beacon-distro → sign-beacon-distro → test-published-image
+#   PRs (from org members or allowed bots):
 #     check-contributor → scan-source → build-beacon-distro → scan-image-beacon-distro → sign-beacon-distro → test-published-image
 #
 # Tagging Strategy:
@@ -91,6 +91,17 @@ jobs:
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
           ORG: complytime
         run: |
+          # Allowed bot accounts that may trigger image builds
+          ALLOWED_BOTS="dependabot[bot] renovate[bot]"
+
+          for bot in $ALLOWED_BOTS; do
+            if [ "${PR_AUTHOR}" = "${bot}" ]; then
+              echo "is_member=true" >> "$GITHUB_OUTPUT"
+              echo "::notice::✅ ${PR_AUTHOR} is an allowed bot - allowing image build"
+              exit 0
+            fi
+          done
+
           # Check if PR author is an org member
           if gh api "orgs/${ORG}/members/${PR_AUTHOR}" --silent 2>/dev/null; then
             echo "is_member=true" >> "$GITHUB_OUTPUT"
@@ -110,12 +121,13 @@ jobs:
   scan-source:
     name: Pre-build Source Scan
     needs: [check-contributor]
+    # Non-PR callers (push via workflow_call, schedule, workflow_dispatch) are
+    # already validated by their triggering workflow — proceed unconditionally.
+    # Only PRs require the contributor membership gate.
     if: |
       always() && (
-        github.event_name == 'workflow_call' ||
-        (needs.check-contributor.result == 'success' && needs.check-contributor.outputs.is_org_member == 'true') ||
-        github.event_name == 'schedule' ||
-        github.event_name == 'workflow_dispatch'
+        github.event_name != 'pull_request'
+        || (needs.check-contributor.result == 'success' && needs.check-contributor.outputs.is_org_member == 'true')
       )
     permissions:
       contents: read # checkout source for scanning
@@ -136,11 +148,13 @@ jobs:
   build-beacon-distro:
     name: Build Beacon Distro Image
     needs: [scan-source, check-contributor]
+    # Source scan must pass (or be skipped). Same caller-trust logic as scan-source:
+    # non-PR events proceed unconditionally; PRs require org membership.
     if: >-
       always()
       && (needs.scan-source.result == 'success' || needs.scan-source.result == 'skipped')
       && (
-        (github.event_name == 'workflow_call' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+        github.event_name != 'pull_request'
         || (needs.check-contributor.result == 'success' && needs.check-contributor.outputs.is_org_member == 'true')
       )
     permissions:
@@ -252,7 +266,7 @@ jobs:
           export GHCR_IMAGE="${GHCR_IMAGE_REF%%:*}"
           export GHCR_TAG="${GHCR_IMAGE_REF##*:}"
           echo "Testing published image: ${GHCR_IMAGE}:${GHCR_TAG}"
-          task integration:test-profile PROFILE=base
+          task integration:test PROFILE=base
 
   # ═══════════════════════════════════════════════════════════════════════════
   # STAGE 6: SUMMARY (provides unified status)
@@ -317,7 +331,7 @@ jobs:
               exit 0
             fi
 
-            if [[ ("$EVENT_NAME" == "workflow_dispatch" || "$EVENT_NAME" == "schedule") && "$R_B2" == "skipped" ]]; then
+            if [[ "$EVENT_NAME" != "pull_request" && "$R_B2" == "skipped" ]]; then
               echo "❌ **Build was skipped — pipeline did not produce an image.**"
               exit 1
             fi

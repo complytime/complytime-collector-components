@@ -18,6 +18,7 @@ vars:
   LOKI_PORT: '{{.LOKI_PORT | default "13100"}}'
   RUSTFS_PORT: '{{.RUSTFS_PORT | default "19000"}}'
   COMPASS_PORT: '{{.COMPASS_PORT | default "18081"}}'
+  VALID_PROFILES: [base, storage, storage-tls, enrichment]
 
 tasks:
   default:
@@ -37,39 +38,29 @@ tasks:
       - task: :infra:generate-self-signed-cert
 
   test:
-    desc: Run all integration test layers sequentially
+    desc: "Run integration tests (all layers, or PROFILE=base|storage|enrichment|storage-tls)"
+    vars:
+      PROFILES:
+        sh: |
+          if [ -n "{{.PROFILE}}" ]; then
+            echo "{{.PROFILE}}"
+          else
+            echo "base storage enrichment"
+          fi
     cmds:
-      - task: ensure-certs
-      - task: test-layer
-        vars:
-          {
-            PROFILE: base,
-            USE_GHCR_IMAGE: "{{.USE_GHCR_IMAGE}}",
-            GHCR_TAG: "{{.GHCR_TAG}}",
-          }
-      - task: test-layer
-        vars:
-          {
-            PROFILE: storage,
-            USE_GHCR_IMAGE: "{{.USE_GHCR_IMAGE}}",
-            GHCR_TAG: "{{.GHCR_TAG}}",
-          }
-      - task: test-layer
-        vars:
-          {
-            PROFILE: enrichment,
-            USE_GHCR_IMAGE: "{{.USE_GHCR_IMAGE}}",
-            GHCR_TAG: "{{.GHCR_TAG}}",
-          }
-
-  test-profile:
-    desc: "Run a single integration test layer (PROFILE=base|storage|enrichment|storage-tls)"
-    requires:
-      vars: [PROFILE]
-    cmds:
-      - task: ensure-certs
-      - task: test-layer
+      - task: validate-profile
         vars: { PROFILE: "{{.PROFILE}}" }
+        if: '[ -n "{{.PROFILE}}" ]'
+      - task: ensure-certs
+      - task: build-images
+        vars:
+          USE_GHCR_IMAGE: "{{.USE_GHCR_IMAGE}}"
+      - for: { var: PROFILES }
+        task: test-layer
+        vars:
+          PROFILE: "{{.ITEM}}"
+          USE_GHCR_IMAGE: "{{.USE_GHCR_IMAGE}}"
+          GHCR_TAG: "{{.GHCR_TAG}}"
 
   test-with-ghcr:
     desc: Run integration tests using GHCR image
@@ -84,7 +75,10 @@ tasks:
   test-layer:
     internal: true
     requires:
-      vars: [PROFILE]
+      vars:
+        - name: PROFILE
+          enum:
+            ref: .VALID_PROFILES
     vars:
       COLLECTOR_CONFIG:
         sh: |
@@ -134,8 +128,6 @@ tasks:
       S3_URL: "http://localhost:{{.RUSTFS_PORT}}"
     cmds:
       - echo "=== Running {{.PROFILE}} layer ==="
-      - task: build-if-local
-        vars: { USE_GHCR_IMAGE: "{{.USE_GHCR_IMAGE}}" }
       - defer:
           {
             task: down,
@@ -145,7 +137,12 @@ tasks:
                 COMPOSE_FILES: "{{.COMPOSE_FILES}}",
               },
           }
-      - "{{.COMPOSE_CMD}} {{.COMPOSE_FILES}} {{.COMPOSE_PROFILES}} up -d --build"
+      - cmd: '{{if eq .PROFILE "enrichment"}}{{.COMPOSE_CMD}} {{.COMPOSE_FILES}} {{.COMPOSE_PROFILES}} build compass{{else}}echo "Skipping compass build (not needed for {{.PROFILE}} profile)"{{end}}'
+      # Ensure data directory exists and is writable by the collector (UID 10001).
+      # Previously compose.yaml used the podman-only :U flag for UID remapping;
+      # creating the directory up-front is portable across Docker and Podman.
+      - mkdir -p data && chmod 777 data
+      - "{{.COMPOSE_CMD}} {{.COMPOSE_FILES}} {{.COMPOSE_PROFILES}} up -d"
       - task: wait
         vars: { PROFILE: "{{.PROFILE}}", COMPOSE_FILES: "{{.COMPOSE_FILES}}" }
       - mkdir -p {{.GINKGO_OUTPUT_DIR}}
@@ -154,7 +151,10 @@ tasks:
   up:
     desc: "Start integration stack without running tests (for IDE debugging)"
     requires:
-      vars: [PROFILE]
+      vars:
+        - name: PROFILE
+          enum:
+            ref: .VALID_PROFILES
     vars:
       COLLECTOR_CONFIG:
         sh: |
@@ -193,6 +193,7 @@ tasks:
       - task: ensure-certs
       - task: build-if-local
         vars: { USE_GHCR_IMAGE: "{{.USE_GHCR_IMAGE}}" }
+      - mkdir -p data && chmod 777 data
       - "{{.COMPOSE_CMD}} {{.COMPOSE_FILES}} {{.COMPOSE_PROFILES}} up -d --build"
       - task: wait
         vars: { PROFILE: "{{.PROFILE}}", COMPOSE_FILES: "{{.COMPOSE_FILES}}" }
@@ -206,6 +207,15 @@ tasks:
     cmds:
       - echo "Building local image"
       - task: :infra:build
+
+  build-images:
+    internal: true
+    desc: Pre-build all container images for integration tests
+    status:
+      - test "{{.USE_GHCR_IMAGE}}" = "true"
+    cmds:
+      - task: build-if-local
+        vars: { USE_GHCR_IMAGE: "{{.USE_GHCR_IMAGE}}" }
 
   wait:
     internal: true
@@ -248,7 +258,9 @@ tasks:
       }
 
       # Build service→container name map from compose (project-scoped)
-      # Note: docker compose and podman-compose have different JSON output formats
+      # docker compose v2.20+ emits NDJSON (one object per line with "Name"),
+      # older versions emit a JSON array with "Names".  podman-compose uses
+      # "Names" as an array.  The python helper handles all three formats.
       declare -A CONTAINERS
       while read -r cname; do
         for svc in collector loki rustfs rustfs-tls compass; do
@@ -257,7 +269,21 @@ tasks:
           fi
         done
       done < <({{.COMPOSE_CMD}} {{.COMPOSE_FILES}} ps --format json 2>/dev/null | \
-               python3 -c "import sys,json; [print(n) for c in json.load(sys.stdin) for n in c.get('Names',[])]" 2>/dev/null || true)
+               python3 -c "
+      import sys, json
+      def names(obj):
+          n = obj.get('Names', obj.get('Name', ''))
+          return n if isinstance(n, list) else [n]
+      for line in sys.stdin:
+          line = line.strip()
+          if not line: continue
+          try: obj = json.loads(line)
+          except json.JSONDecodeError: continue
+          items = obj if isinstance(obj, list) else [obj]
+          for c in items:
+              for n in names(c):
+                  if n: print(n)
+      " 2>/dev/null || true)
       echo "Resolved containers:"
       for svc in "${!CONTAINERS[@]}"; do echo "  $svc -> ${CONTAINERS[$svc]}"; done
 
@@ -279,4 +305,35 @@ tasks:
     desc: Tear down integration test stack
     vars:
       COMPOSE_FILES: '{{.COMPOSE_FILES | default "-f compose.yaml"}}'
-    cmd: "{{.COMPOSE_CMD}} {{.COMPOSE_FILES}} {{.COMPOSE_PROFILES}} down -v"
+    cmds:
+      - cmd: "{{.COMPOSE_CMD}} {{.COMPOSE_FILES}} {{.COMPOSE_PROFILES}} down -v"
+        ignore_error: true
+      - task: prune
+
+  validate-profile:
+    internal: true
+    desc: Validate PROFILE value against allowed profiles
+    requires:
+      vars:
+        - name: PROFILE
+          enum:
+            ref: .VALID_PROFILES
+    cmd: "true"
+
+  prune:
+    internal: true
+    desc: Remove dangling images and build cache to reclaim disk (CI only)
+    status:
+      - test "${CI:-}" != "true"
+    cmd: |
+      # Detect container runtime from compose command
+      runtime="podman"
+      if [[ "{{.COMPOSE_CMD}}" == "docker"* ]]; then
+        runtime="docker"
+      fi
+      echo "Pruning dangling images..."
+      $runtime image prune -f 2>/dev/null || true
+      echo "Pruning build cache..."
+      $runtime builder prune -f 2>/dev/null || true
+      echo "Disk usage after prune:"
+      df -h / 2>/dev/null || true

@@ -6,19 +6,19 @@ name: Promote to Quay
 
 on:
   push:
-    tags: ['v*.*.*']
+    tags: ["v*.*.*"]
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version tag to create (e.g., v1.2.3)'
+        description: "Version tag to create (e.g., v1.2.3)"
         type: string
         required: true
       source_sha:
-        description: 'Commit SHA of the image to promote (7+ chars)'
+        description: "Commit SHA of the image to promote (7+ chars)"
         type: string
         required: true
       force:
-        description: 'Overwrite existing tag (breaks immutability)'
+        description: "Overwrite existing tag (breaks immutability)"
         type: boolean
         default: false
 
@@ -57,9 +57,44 @@ jobs:
           fi
           echo "dest_tag=${VERSION}" >> "$GITHUB_OUTPUT"
 
+  verify-ghcr-image:
+    name: Verify GHCR Image Exists
+    needs: setup
+    runs-on: ubuntu-latest
+    permissions:
+      packages: read
+    steps:
+      - uses: imjasonh/setup-crane@6da1ae018866400525525ce74ff892880c099987 # v0.5
+      - name: Check image exists
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_TAG: ${{ needs.setup.outputs.source_tag }}
+          GH_ACTOR: ${{ github.actor }}
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+        run: |
+          IMAGE="ghcr.io/complytime/complybeacon-beacon-distro:${SOURCE_TAG}"
+          echo "$TOKEN" | crane auth login ghcr.io -u "$GH_ACTOR" --password-stdin
+
+          if crane manifest "$IMAGE" > /dev/null 2>&1; then
+            echo "Image found: $IMAGE"
+          else
+            echo "::error::No GHCR image found for tag '${SOURCE_TAG}'."
+            echo ""
+            echo "The Quay promotion requires a signed image on GHCR, which is built"
+            echo "by the publish workflow on pushes to main."
+            echo ""
+            echo "To fix this:"
+            echo "  1. Check the publish workflows for the tagged commit:"
+            echo "     ${REPO_URL}/actions/workflows/ci_publish_ghcr.yml"
+            echo "  2. If the publish failed or was skipped, fix the issue and"
+            echo "     re-run the publish workflow via workflow_dispatch."
+            echo "  3. Once the GHCR image exists, re-run this workflow."
+            exit 1
+          fi
+
   tag-ghcr:
     name: Tag GHCR Images
-    needs: setup
+    needs: [setup, verify-ghcr-image]
     runs-on: ubuntu-latest
     permissions:
       packages: write
@@ -80,6 +115,7 @@ jobs:
     needs: [setup, tag-ghcr]
     permissions:
       packages: read
+    # Upstream is misspelled
     uses: complytime/org-infra/.github/workflows/resuable_publish_quay.yml@cfd981e757253218aefb37c91969c32827e5c4b1 # v0.2.1
     with:
       source_registry: ghcr.io

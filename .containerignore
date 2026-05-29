@@ -1,0 +1,5 @@
+# Exclude everything, then allowlist only what Containerfile.collector needs
+*
+!beacon-distro/manifest.yaml
+!beacon-distro/config.yaml
+!truthbeam/
