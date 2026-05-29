@@ -80,7 +80,7 @@ jobs:
     needs: [setup, tag-ghcr]
     permissions:
       packages: read
-    uses: complytime/org-infra/.github/workflows/reusable_publish_quay.yml@cfd981e757253218aefb37c91969c32827e5c4b1 # v0.2.1
+    uses: complytime/org-infra/.github/workflows/resuable_publish_quay.yml@cfd981e757253218aefb37c91969c32827e5c4b1 # v0.2.1
     with:
       source_registry: ghcr.io
       source_image: complytime/complybeacon-beacon-distro
