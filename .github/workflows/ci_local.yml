@@ -317,7 +317,10 @@ jobs:
           retention-days: 7
 
   publish-images:
-    name: Publish Container Images
+    # Name suffix "(push to main only)": gated to push-on-default-branch by the if:
+    # below, so it shows as a skipped node on every PR by design. The suffix marks
+    # the gray node as intentional rather than a failed publish.
+    name: Publish Container Images (push to main only)
     needs: [golangci-lint, test, weave-check, verify-codegen, integration-test]
     if: >-
       github.event_name == 'push'

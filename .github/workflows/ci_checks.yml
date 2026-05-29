@@ -20,21 +20,6 @@ jobs:
     permissions:
       contents: read
       issues: read
-
-  publish-images:
-    name: Publish Container Images
-    needs: [call_reusable_ci]
-    if: >-
-      github.event_name == 'push'
-      && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
-      && needs.call_reusable_ci.result == 'success'
-    permissions:
-      contents: read
-      packages: write
-      security-events: write
-      id-token: write
-      actions: read
-      attestations: write
-    uses: ./.github/workflows/ci_publish_ghcr.yml
-    with:
-      trigger_source: "CI"
+    # Image publishing is handled exclusively by ci_local.yml, which gates
+    # the publish step behind all quality checks (lint, test, codegen verify,
+    # integration tests). Duplicating it here caused redundant builds.

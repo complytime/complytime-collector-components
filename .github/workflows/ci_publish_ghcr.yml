@@ -4,17 +4,17 @@
 # ONLY runs AFTER all CI tests pass to ensure image quality.
 #
 # Pipeline Flow:
-#   Non-PR callers (push via workflow_call, schedule, workflow_dispatch):
-#     scan-source → build-beacon-distro → scan-image-beacon-distro → sign-beacon-distro → test-published-image
-#   PRs (from org members or allowed bots):
-#     check-contributor → scan-source → build-beacon-distro → scan-image-beacon-distro → sign-beacon-distro → test-published-image
+#   build-beacon-distro → scan-image-beacon-distro → sign-beacon-distro → test-published-image
+#
+# Invocation:
+#   - workflow_call: from ci_local.yml after all quality gates pass (push to main)
+#   - schedule: monthly rebuilds for base image security updates
+#   - workflow_dispatch: manual triggering
+#
+# Source vulnerability scanning is handled separately by ci_security.yml.
 #
 # Tagging Strategy:
 #   - All builds: sha-<commit> (immutable, for traceability)
-#
-# Security:
-#   - PRs from external contributors do NOT trigger image builds
-#   - Only org members' PRs can publish images
 #
 # NOTE: Scorecard flags 'write' permissions but these are REQUIRED for image publishing
 # See: https://docs.github.com/en/actions/sharing-automations/reusing-workflows
@@ -35,15 +35,6 @@ on:
         type: boolean
         required: false
         default: false
-  # Direct PR builds from org members (gated by org membership check)
-  pull_request:
-    branches: [main]
-    paths:
-      - "**/Containerfile*"
-      - "beacon-distro/**"
-      - "proofwatch/**"
-      - "truthbeam/**"
-      - ".github/workflows/ci_publish_ghcr.yml"
   schedule:
     - cron: "0 0 */30 * *" # Monthly rebuilds for base image security updates
   workflow_dispatch: # Allow manual triggering
@@ -71,92 +62,18 @@ concurrency:
 
 jobs:
   # ═══════════════════════════════════════════════════════════════════════════
-  # STAGE -1: ORG MEMBER CHECK (for PRs)
+  # STAGE 1: BUILD AND PUSH
   # ═══════════════════════════════════════════════════════════════════════════
-  # Only allow image builds from org members to prevent malicious PRs from
-  # consuming CI resources or attempting supply chain attacks.
-  check-contributor:
-    name: Verify Org Membership
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    outputs:
-      is_org_member: ${{ steps.check.outputs.is_member }}
-    permissions:
-      contents: read
-    steps:
-      - name: Check org membership
-        id: check
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
-          ORG: complytime
-        run: |
-          # Allowed bot accounts that may trigger image builds
-          ALLOWED_BOTS="dependabot[bot] renovate[bot]"
-
-          for bot in $ALLOWED_BOTS; do
-            if [ "${PR_AUTHOR}" = "${bot}" ]; then
-              echo "is_member=true" >> "$GITHUB_OUTPUT"
-              echo "::notice::✅ ${PR_AUTHOR} is an allowed bot - allowing image build"
-              exit 0
-            fi
-          done
-
-          # Check if PR author is an org member
-          if gh api "orgs/${ORG}/members/${PR_AUTHOR}" --silent 2>/dev/null; then
-            echo "is_member=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::✅ ${PR_AUTHOR} is a ${ORG} org member - allowing image build"
-          else
-            echo "is_member=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::⏭️  ${PR_AUTHOR} is not a ${ORG} org member - skipping image build"
-          fi
-
-  # ═══════════════════════════════════════════════════════════════════════════
-  # STAGE 1: PRE-BUILD SOURCE SCANNING (shift-left security)
-  # ═══════════════════════════════════════════════════════════════════════════
-  # Catches vulnerabilities BEFORE building—fail fast, save CI time.
-  # Single scan covers entire repository (both components).
-  # NOTE: Image scanning is disabled here (enable_trivy_image: false) because no
-  # image exists yet. Image scanning happens in STAGE 3 post-build.
-  scan-source:
-    name: Pre-build Source Scan
-    needs: [check-contributor]
-    # Non-PR callers (push via workflow_call, schedule, workflow_dispatch) are
-    # already validated by their triggering workflow — proceed unconditionally.
-    # Only PRs require the contributor membership gate.
-    if: |
-      always() && (
-        github.event_name != 'pull_request'
-        || (needs.check-contributor.result == 'success' && needs.check-contributor.outputs.is_org_member == 'true')
-      )
-    permissions:
-      contents: read # checkout source for scanning
-      packages: write # reusable workflow's nested job requires write
-      security-events: write # upload SARIF results
-      id-token: write # OIDC for registry auth
-      actions: read # access reusable workflow
-    uses: complytime/org-infra/.github/workflows/reusable_vuln_scan.yml@cfd981e757253218aefb37c91969c32827e5c4b1 # v0.2.1
-    with:
-      enable_osv: true
-      enable_trivy_source: true
-      enable_trivy_image: false # No image exists yet; image scan happens post-build in STAGE 3
-      trivy_severity: HIGH,CRITICAL
-
-  # ═══════════════════════════════════════════════════════════════════════════
-  # STAGE 2: BUILD AND PUSH (after source scan passes)
-  # ═══════════════════════════════════════════════════════════════════════════
+  # Pre-build source scanning (OSV + Trivy) is handled by the ci_security.yml
+  # workflow, which triggers on the same events. Duplicating it here added
+  # redundant CI minutes without additional coverage.
+  #
+  # Org membership check (check-contributor) was removed together with the
+  # standalone pull_request trigger. This workflow now only fires via
+  # workflow_call (from ci_local.yml, which gates on push-to-main),
+  # schedule, or workflow_dispatch — all trusted invocation paths.
   build-beacon-distro:
     name: Build Beacon Distro Image
-    needs: [scan-source, check-contributor]
-    # Source scan must pass (or be skipped). Same caller-trust logic as scan-source:
-    # non-PR events proceed unconditionally; PRs require org membership.
-    if: >-
-      always()
-      && (needs.scan-source.result == 'success' || needs.scan-source.result == 'skipped')
-      && (
-        github.event_name != 'pull_request'
-        || (needs.check-contributor.result == 'success' && needs.check-contributor.outputs.is_org_member == 'true')
-      )
     permissions:
       contents: read # checkout source for build
       packages: write # push image to GHCR
@@ -173,18 +90,24 @@ jobs:
       image_description: ComplyBeacon Beacon Distro collector
       image_vendor: ComplyTime
       force_rebuild: ${{ inputs.force_rebuild || false }}
-      allow_unprotected_ref: true # Enable PR builds (gated by org membership check)
+      allow_unprotected_ref: true # Allow workflow_dispatch on non-default branches
     # NOTE: Outputs from the reusable workflow (image, digest, image_ref, tags)
     # are automatically available to downstream jobs via needs.build-beacon-distro.outputs.*
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # STAGE 3: POST-BUILD IMAGE SCANNING
+  # STAGE 2: POST-BUILD IMAGE SCANNING
   # ═══════════════════════════════════════════════════════════════════════════
   # Scans built images for OS package vulns, runtime deps, embedded secrets.
   scan-image-beacon-distro:
     name: Scan Beacon Distro Image
     needs: [build-beacon-distro]
-    if: ${{ needs.build-beacon-distro.result == 'success' && needs.build-beacon-distro.outputs.image != '' }}
+    # always() is required to work around actions/runner#2205: without it, if
+    # any transitive dependency in the chain is skipped, GitHub Actions skips
+    # this job without evaluating the if condition.
+    if: >-
+      always()
+      && needs.build-beacon-distro.result == 'success'
+      && needs.build-beacon-distro.outputs.image != ''
     permissions:
       contents: read # reusable may checkout for config
       packages: write # pull image from GHCR
@@ -201,10 +124,12 @@ jobs:
       trivy_severity: HIGH,CRITICAL
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # STAGE 4: SIGN AND VERIFY (keyless signing with Sigstore)
+  # STAGE 3: SIGN AND VERIFY (keyless signing with Sigstore)
   # ═══════════════════════════════════════════════════════════════════════════
   sign-beacon-distro:
-    name: Sign Beacon Distro Image
+    # The reusable workflow gates signing on `github.ref_protected`, so this stage
+    # is a no-op (skipped) on unprotected refs such as PR branches.
+    name: Sign Beacon Distro Image (protected refs only)
     needs: [build-beacon-distro, scan-image-beacon-distro]
     if: >-
       always()
@@ -220,9 +145,13 @@ jobs:
       image_name: ${{ needs.build-beacon-distro.outputs.image }}
       digest: ${{ needs.build-beacon-distro.outputs.digest }}
       allowed_identity_regex: https://github.com/complytime/org-infra(/.*)?
+      # Only verify vuln attestation when the image scan ran and attached one.
+      # The reusable workflow defaults verify_vuln to true, which fails when the
+      # scan was skipped and no vuln attestation exists on the image.
+      verify_vuln: ${{ needs.scan-image-beacon-distro.result == 'success' }}
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # STAGE 5: INTEGRATION TEST (validates published image)
+  # STAGE 4: INTEGRATION TEST (validates published image)
   # ═══════════════════════════════════════════════════════════════════════════
   # Tests the published GHCR image to ensure it works correctly
   test-published-image:
@@ -269,14 +198,12 @@ jobs:
           task integration:test PROFILE=base
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # STAGE 6: SUMMARY (provides unified status)
+  # STAGE 5: SUMMARY (provides unified status)
   # ═══════════════════════════════════════════════════════════════════════════
   summary:
     name: Pipeline Summary
     needs:
       [
-        check-contributor,
-        scan-source,
         build-beacon-distro,
         scan-image-beacon-distro,
         sign-beacon-distro,
@@ -289,49 +216,28 @@ jobs:
     steps:
       - name: Generate Summary
         env:
-          R_CONTRIB: ${{ needs.check-contributor.result }}
-          R_SRC: ${{ needs.scan-source.result }}
           R_B2: ${{ needs.build-beacon-distro.result }}
           R_S2: ${{ needs.scan-image-beacon-distro.result }}
           R_G2: ${{ needs.sign-beacon-distro.result }}
           R_TEST: ${{ needs.test-published-image.result }}
-          IS_ORG_MEMBER: ${{ needs.check-contributor.outputs.is_org_member }}
-          EVENT_NAME: ${{ github.event_name }}
         run: |
           icon() { case "$1" in success) echo "✅";; skipped) echo "⏭️";; *) echo "❌";; esac; }
 
-          # Determine build type
-          if [[ "$EVENT_NAME" == "pull_request" ]]; then
-            BUILD_TYPE="🔧 Dev Build (PR)"
-          else
-            BUILD_TYPE="🚀 Production Build"
-          fi
           BUILD_TAG="sha-$GITHUB_SHA"
 
           {
             cat << EOF
-          ## ${BUILD_TYPE}
+          ## 🚀 Production Build
 
           | Stage | Beacon Distro |
           |-------|---------------|
-          | Org Member Check | $(icon "$R_CONTRIB") |
-          | Source Scan | $(icon "$R_SRC") |
           | Build | $(icon "$R_B2") |
           | Image Scan | $(icon "$R_S2") |
           | Sign | $(icon "$R_G2") |
           | Integration Test | $(icon "$R_TEST") |
           EOF
 
-            # PR-specific checks
-            if [[ "$EVENT_NAME" == "pull_request" && "$IS_ORG_MEMBER" != "true" ]]; then
-              cat << EOF
-
-          ⏭️ **External contributor - image build skipped for security.**
-          EOF
-              exit 0
-            fi
-
-            if [[ "$EVENT_NAME" != "pull_request" && "$R_B2" == "skipped" ]]; then
+            if [[ "$R_B2" == "skipped" ]]; then
               echo "❌ **Build was skipped — pipeline did not produce an image.**"
               exit 1
             fi
@@ -346,6 +252,16 @@ jobs:
               exit 1
             fi
 
+            # Catch-all: any required stage that genuinely failed (not an intentional
+            # skip) must turn the summary red. Without this, a failed signing step or
+            # image scan would fall through to the success block and report false green.
+            for stage_result in "$R_B2" "$R_S2" "$R_G2" "$R_TEST"; do
+              if [[ "$stage_result" == "failure" || "$stage_result" == "cancelled" ]]; then
+                echo "❌ **A required pipeline stage failed (result: ${stage_result}). See the failed job above.**"
+                exit 1
+              fi
+            done
+
             cat << EOF
 
           ✅ **Pipeline completed successfully.**
@@ -353,7 +269,7 @@ jobs:
           ### 🔒 Security & Quality Checks
           - ✅ CI tests passed (quality gate)
           - ✅ Secret scanning
-          - ✅ Vulnerability scanning (source)
+          - ✅ Vulnerability scanning (source — via ci_security.yml)
           EOF
 
             # Only claim stages passed if they actually ran successfully
@@ -382,18 +298,10 @@ jobs:
           ### 📦 Published Images
           - **Tag**: \`${BUILD_TAG}\`
           EOF
-
-            if [[ "$EVENT_NAME" == "pull_request" ]]; then
-              cat << EOF
-
-          > **Note**: This is a dev build from a PR. Each push creates a new immutable SHA-tagged image.
-          > Use \`skopeo inspect docker://ghcr.io/complytime/complybeacon-beacon-distro:${BUILD_TAG}\` to verify.
-          EOF
-            fi
           } >> "$GITHUB_STEP_SUMMARY"
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # STAGE 7: PRUNE OLD IMAGES (cleanup after successful publish)
+  # STAGE 6: PRUNE OLD IMAGES (cleanup after successful publish)
   # ═══════════════════════════════════════════════════════════════════════════
   prune-old-images:
     name: Prune Old GHCR Images
@@ -402,7 +310,6 @@ jobs:
       always()
       && needs.build-beacon-distro.result == 'success'
       && (needs.sign-beacon-distro.result == 'success' || needs.sign-beacon-distro.result == 'skipped')
-      && github.event_name != 'pull_request'
     permissions:
       packages: write # required by ci_prune_ghcr.yml to delete package versions
     uses: ./.github/workflows/ci_prune_ghcr.yml
