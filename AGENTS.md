@@ -100,7 +100,7 @@ All commits MUST use Conventional Commits, the `-s` flag (Signed-off-by), and in
 
 ## CI Workflow Gotchas
 
-- **`artifact-metadata` is not a valid GitHub Actions permission**: A previous commit added `artifact-metadata: write` to `ci_publish_ghcr.yml`, believing it was required by `actions/attest`. This caused `ci_local.yml` to fail at startup (`startup_failure`) because GitHub validates all referenced reusable workflows — including their permission blocks — before starting any job. The correct scope for build provenance attestations is `attestations: write`.
+- **`artifact-metadata` is not a valid GitHub Actions permission** scope. The correct scope for build provenance attestations (actions/attest) is `attestations: write`. Using an invalid scope causes a startup_failure because GitHub validates all permission blocks including in reusable workflows before any job runs.
 - **Reusable workflow permission validation is global**: When `ci_local.yml` calls `ci_publish_ghcr.yml` via `uses:`, GitHub parses and validates the called workflow's permissions block even if the calling job wouldn't run it. An invalid permission in any reusable workflow breaks the entire caller.
 - **Required permissions for GHCR publish with attestations**: The `build-beacon-distro` job in `ci_publish_ghcr.yml` needs exactly: `contents: read`, `packages: write`, `id-token: write`, `actions: read`, `attestations: write`. Use `actions: read` (not `write`) for least privilege.
 - **Quay publish has no attestation support**: `ci_publish_quay.yml` does not use `actions/attest` and does not need `attestations` or `id-token` permissions. Quay authentication uses `QUAY_USERNAME` and `QUAY_PASSWORD` repository secrets.
