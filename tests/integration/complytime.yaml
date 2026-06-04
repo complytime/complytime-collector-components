@@ -1,0 +1,3 @@
+policies:
+  - id: ampel-branch-protection
+    url: quay.io/complytime/policies-ampel-branch-protection@v0.1.0

@@ -18,27 +18,11 @@ vars:
   LOKI_PORT: '{{.LOKI_PORT | default "13100"}}'
   RUSTFS_PORT: '{{.RUSTFS_PORT | default "19000"}}'
   COMPASS_PORT: '{{.COMPASS_PORT | default "18081"}}'
-  VALID_PROFILES: [base, storage, storage-tls, enrichment]
+  VALID_PROFILES: [base, storage, storage-tls, enrichment, compliance]
 
 tasks:
   default:
-    silent: true
-    cmd: task integration --list
-
-  ensure-certs:
-    desc: Generate self-signed certificates if they do not exist
-    status:
-      - test -f {{.CERT_DIR}}/compass.crt
-      - test -f {{.CERT_DIR}}/compass.key
-      - test -f {{.CERT_DIR}}/truthbeam.crt
-      - test -f {{.CERT_DIR}}/truthbeam.key
-      - test -f {{.CERT_DIR}}/rustfs.crt
-      - test -f {{.CERT_DIR}}/rustfs.key
-    cmds:
-      - task: :infra:generate-self-signed-cert
-
-  test:
-    desc: "Run integration tests (all layers, or PROFILE=base|storage|enrichment|storage-tls)"
+    desc: "Run integration tests (all layers, or PROFILE=base|storage|storage-tls|enrichment|compliance)"
     vars:
       PROFILES:
         sh: |
@@ -62,12 +46,24 @@ tasks:
           USE_GHCR_IMAGE: "{{.USE_GHCR_IMAGE}}"
           GHCR_TAG: "{{.GHCR_TAG}}"
 
+  ensure-certs:
+    desc: Generate self-signed certificates if they do not exist
+    status:
+      - test -f {{.CERT_DIR}}/compass.crt
+      - test -f {{.CERT_DIR}}/compass.key
+      - test -f {{.CERT_DIR}}/truthbeam.crt
+      - test -f {{.CERT_DIR}}/truthbeam.key
+      - test -f {{.CERT_DIR}}/rustfs.crt
+      - test -f {{.CERT_DIR}}/rustfs.key
+    cmds:
+      - task: :infra:generate-self-signed-cert
+
   test-with-ghcr:
     desc: Run integration tests using GHCR image
     vars:
       GHCR_TAG_INPUT: "{{.GHCR_TAG_INPUT | default .GHCR_TAG}}"
     cmds:
-      - task: test
+      - task: default
         vars:
           USE_GHCR_IMAGE: "true"
           GHCR_TAG: "{{.GHCR_TAG_INPUT}}"
@@ -87,6 +83,7 @@ tasks:
             storage) echo "configs/collector-storage.yaml" ;;
             storage-tls) echo "configs/collector-storage-tls.yaml" ;;
             enrichment) echo "configs/collector-enrichment.yaml" ;;
+            compliance) echo "configs/collector-enrichment.yaml" ;;
             *) echo "INVALID_PROFILE" ;;
           esac
       COMPOSE_PROFILES:
@@ -96,6 +93,7 @@ tasks:
             storage) echo "--profile storage" ;;
             storage-tls) echo "--profile storage-tls" ;;
             enrichment) echo "--profile storage --profile enrichment" ;;
+            compliance) echo "--profile storage --profile enrichment" ;;
             *) echo "" ;;
           esac
       COMPOSE_FILES:
@@ -128,6 +126,8 @@ tasks:
       S3_URL: "http://localhost:{{.RUSTFS_PORT}}"
     cmds:
       - echo "=== Running {{.PROFILE}} layer ==="
+      - cmd: 'task test:compliance:pull'
+        if: '[ "{{.PROFILE}}" = "compliance" ]'
       - defer:
           {
             task: down,
@@ -137,11 +137,12 @@ tasks:
                 COMPOSE_FILES: "{{.COMPOSE_FILES}}",
               },
           }
-      - cmd: '{{if eq .PROFILE "enrichment"}}{{.COMPOSE_CMD}} {{.COMPOSE_FILES}} {{.COMPOSE_PROFILES}} build compass{{else}}echo "Skipping compass build (not needed for {{.PROFILE}} profile)"{{end}}'
+        if: '[ "${KEEP_ALIVE:-}" != "true" ]'
+      - cmd: '{{if or (eq .PROFILE "enrichment") (eq .PROFILE "compliance")}}{{.COMPOSE_CMD}} {{.COMPOSE_FILES}} {{.COMPOSE_PROFILES}} build compass{{else}}echo "Skipping compass build (not needed for {{.PROFILE}} profile)"{{end}}'
       # Ensure data directory exists and is writable by the collector (UID 10001).
       # Previously compose.yaml used the podman-only :U flag for UID remapping;
       # creating the directory up-front is portable across Docker and Podman.
-      - mkdir -p data && chmod 777 data
+      - task: clean-data
       - "{{.COMPOSE_CMD}} {{.COMPOSE_FILES}} {{.COMPOSE_PROFILES}} up -d"
       - task: wait
         vars: { PROFILE: "{{.PROFILE}}", COMPOSE_FILES: "{{.COMPOSE_FILES}}" }
@@ -163,6 +164,7 @@ tasks:
             storage) echo "configs/collector-storage.yaml" ;;
             storage-tls) echo "configs/collector-storage-tls.yaml" ;;
             enrichment) echo "configs/collector-enrichment.yaml" ;;
+            compliance) echo "configs/collector-enrichment.yaml" ;;
             *) echo "INVALID_PROFILE" ;;
           esac
       COMPOSE_PROFILES:
@@ -172,6 +174,7 @@ tasks:
             storage) echo "--profile storage" ;;
             storage-tls) echo "--profile storage-tls" ;;
             enrichment) echo "--profile storage --profile enrichment" ;;
+            compliance) echo "--profile storage --profile enrichment" ;;
             *) echo "" ;;
           esac
       COMPOSE_FILES:
@@ -193,12 +196,12 @@ tasks:
       - task: ensure-certs
       - task: build-if-local
         vars: { USE_GHCR_IMAGE: "{{.USE_GHCR_IMAGE}}" }
-      - mkdir -p data && chmod 777 data
+      - task: clean-data
       - "{{.COMPOSE_CMD}} {{.COMPOSE_FILES}} {{.COMPOSE_PROFILES}} up -d --build"
       - task: wait
         vars: { PROFILE: "{{.PROFILE}}", COMPOSE_FILES: "{{.COMPOSE_FILES}}" }
       - cmd: 'echo "Stack running. Run tests with: GOWORK=off go tool ginkgo run -vv {{.TEST_DIR}}"'
-      - cmd: 'echo "Tear down with: task integration:down"'
+      - cmd: 'echo "Tear down with: task test:integration:down"'
 
   build-if-local:
     internal: true
@@ -290,16 +293,24 @@ tasks:
       echo "Waiting for services to be ready..."
       wait_for_service "Collector webhook" "http://localhost:{{.WEBHOOK_PORT}}/eventreceiver/healthcheck" "" "${CONTAINERS[collector]:-}"
       wait_for_service "Loki" "http://localhost:{{.LOKI_PORT}}/ready" "" "${CONTAINERS[loki]:-}"
-      {{if or (eq .PROFILE "storage") (eq .PROFILE "enrichment")}}
+      {{if or (eq .PROFILE "storage") (eq .PROFILE "enrichment") (eq .PROFILE "compliance")}}
       wait_for_service "RustFS" "http://localhost:{{.RUSTFS_PORT}}/health" "" "${CONTAINERS[rustfs]:-}"
       {{end}}
       {{if eq .PROFILE "storage-tls"}}
       wait_for_service "RustFS TLS" "https://localhost:{{.RUSTFS_PORT}}/health" "-k" "${CONTAINERS[rustfs-tls]:-}"
       {{end}}
-      {{if eq .PROFILE "enrichment"}}
+      {{if or (eq .PROFILE "enrichment") (eq .PROFILE "compliance")}}
       wait_for_service "Mock Compass" "https://localhost:{{.COMPASS_PORT}}/healthz" "-sk" "${CONTAINERS[compass]:-}"
       {{end}}
       echo "All services ready."
+
+  clean-data:
+    internal: true
+    desc: "Ensure data directory exists and is writable by container UID 10001"
+    status:
+      - test -d data
+    cmds:
+      - mkdir -p data && chmod 777 data
 
   down:
     desc: Tear down integration test stack

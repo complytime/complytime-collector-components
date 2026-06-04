@@ -4,7 +4,18 @@ version: "3"
 # Uses .tool_checksums file for SHA256 verification
 
 vars:
-  TOOLS_DIR: '{{.TOOLS_DIR | default "/usr/local/bin"}}'
+  TOOLS_DIR:
+    sh: |
+      dir="{{.TOOLS_DIR}}"
+      if [ -z "$dir" ]; then
+        if [ -w /usr/local/bin ]; then
+          dir="/usr/local/bin"
+        else
+          dir="${HOME}/.local/bin"
+          mkdir -p "$dir"
+        fi
+      fi
+      echo "$dir"
   CHECKSUMS_FILE: "{{.ROOT_DIR}}/.tool_checksums"
 
 tasks:
@@ -25,7 +36,25 @@ tasks:
       - test -x {{.TOOLS_DIR}}/weaver
       - weaver --version | grep -q "{{.WEAVER_VERSION}}"
 
+  install-complyctl:
+    desc: "Install complyctl with SHA256 verification"
+    vars:
+      COMPLYCTL_VERSION: "v1.0.0-alpha.0"
+      COMPLYCTL_URL: "https://github.com/complytime/complyctl/releases/download/{{.COMPLYCTL_VERSION}}/complyctl_linux_x86_64.tar.gz"
+    cmds:
+      - curl -fL -o /tmp/complyctl.tar.gz "{{.COMPLYCTL_URL}}"
+      - |
+        COMPLYCTL_SHA=$(grep "complyctl/{{.COMPLYCTL_VERSION}}/linux/x86_64" {{.CHECKSUMS_FILE}} | cut -d: -f2 | tr -d ' ')
+        echo "${COMPLYCTL_SHA}  /tmp/complyctl.tar.gz" | sha256sum -c -
+      - tar -xzf /tmp/complyctl.tar.gz -C /tmp
+      - install /tmp/complyctl {{.TOOLS_DIR}}/complyctl
+      - rm -rf /tmp/complyctl.tar.gz /tmp/complyctl /tmp/LICENSE /tmp/README.md /tmp/openscap-plugin
+      - complyctl version
+    status:
+      - test -x {{.TOOLS_DIR}}/complyctl
+
   install-all:
     desc: "Install all external tools"
     cmds:
       - task: install-weaver
+      - task: install-complyctl

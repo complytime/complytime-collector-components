@@ -24,15 +24,13 @@ Certificates are generated automatically if missing.
 
 ```bash
 # Run all layers sequentially
-task integration:test
+task test:integration
 
 # Run a single layer
-task integration:test-profile PROFILE=base
-task integration:test-profile PROFILE=storage
-task integration:test-profile PROFILE=enrichment
-
-# Top-level alias (runs all layers)
-task test:integration
+task test:integration PROFILE=base
+task test:integration PROFILE=storage
+task test:integration PROFILE=enrichment
+task test:integration PROFILE=compliance  # pulls OCI policy bundle via complyctl
 ```
 
 ### IDE / Manual Debugging
@@ -41,13 +39,13 @@ Start the stack without running tests, then run Ginkgo directly:
 
 ```bash
 # Start the stack for a specific layer
-task integration:up PROFILE=base
+task test:integration:up PROFILE=base
 
 # Run tests from repo root
 go tool ginkgo run -vv --label-filter="base" ./tests/integration/
 
 # Tear down when done
-task integration:down
+task test:integration:down
 ```
 
 Test output is written to `.test-output/integration/`.
@@ -60,15 +58,19 @@ Test output is written to `.test-output/integration/`.
 | Storage     | `storage`       | `configs/collector-storage.yaml`     | collector, Loki, RustFS               |
 | Storage TLS | `storage-tls`   | `configs/collector-storage-tls.yaml` | collector-tls, Loki, RustFS (TLS)     |
 | Enrichment  | `enrichment`    | `configs/collector-enrichment.yaml`  | collector, Loki, RustFS, mock Compass |
+| Compliance  | `compliance`    | `configs/collector-enrichment.yaml`  | collector, Loki, RustFS, mock Compass |
+
+The **Compliance** layer reuses the enrichment stack and additionally requires OCI policy bundles pulled from Quay.io via `task test:compliance:pull` (runs automatically as a dependency). Tests skip gracefully if the bundle is unavailable.
 
 ## Test Suites
 
-| File                  | Label         | Test Cases                                                                           |
-|-----------------------|---------------|--------------------------------------------------------------------------------------|
-| `base_test.go`        | `base`        | Healthcheck, OCSF transform to Loki, success evidence, malformed evidence resilience |
-| `storage_test.go`     | `storage`     | S3 export, S3 partitioning by policy ID                                              |
-| `storage_tls_test.go` | `storage-tls` | TLS S3 export, TLS S3 partitioning (via `rc` client)                                 |
-| `enrichment_test.go`  | `enrichment`  | Enrichment applied, unknown policy graceful handling                                 |
+| File                              | Label        | Test Cases                                                                           |
+|-----------------------------------|--------------|--------------------------------------------------------------------------------------|
+| `base_test.go`                    | `base`       | Healthcheck, OCSF transform to Loki, success evidence, malformed evidence resilience |
+| `storage_test.go`                 | `storage`    | S3 export, S3 partitioning by policy ID                                              |
+| `storage_tls_test.go`             | `storage-tls`| TLS S3 export, TLS S3 partitioning (via `rc` client)                                 |
+| `enrichment_test.go`              | `enrichment` | Enrichment applied, unknown policy graceful handling                                 |
+| `compliance/compliance_test.go`   | `compliance` | Upstream policy parsing, per-control Loki + S3 pipeline, enrichment validation       |
 
 ## Mock Compass
 
@@ -107,6 +109,6 @@ Then create a matching evidence fixture in `fixtures/` with `policy.uid` set to 
 
 1. Create evidence fixture(s) in `fixtures/` following the OCSF format from existing fixtures
 2. If the test needs a new Compass response, add it to `compass-responses.json`
-3. Add the test spec to the appropriate layer file (`base_test.go`, `storage_test.go`, `storage_tls_test.go`, or `enrichment_test.go`)
+3. Add the test spec to the appropriate layer file (`base_test.go`, `storage_test.go`, `storage_tls_test.go`, `enrichment_test.go`, or `compliance/compliance_test.go`)
 4. Use the `Label()` decorator matching the layer so `--label-filter` selects it correctly
 5. Follow the pattern: `postEvidence()` → `Eventually` poll via `queryLoki()`/`listS3Objects()` → verify pipeline health

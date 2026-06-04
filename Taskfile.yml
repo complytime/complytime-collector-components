@@ -20,10 +20,12 @@ includes:
     taskfile: .taskfiles/version.yml
   quality:
     taskfile: .taskfiles/quality.yml
-  integration:
+  "test:integration":
     taskfile: .taskfiles/integration.yml
   tools:
     taskfile: .taskfiles/tools.yml
+  "test:compliance":
+    taskfile: .taskfiles/compliance.yml
 
 vars:
   APP_NAME: '{{.APP_NAME | default "complybeacon"}}'
@@ -95,7 +97,3 @@ tasks:
       - rm -rf {{.BIN_DIR}} {{.TEST_DIR}}
       - GOFLAGS= go clean -modcache
 
-  test:integration:
-    desc: "Run integration tests (all layers, or PROFILE=base|storage|enrichment)"
-    cmds:
-      - task: integration:test

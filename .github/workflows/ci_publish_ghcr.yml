@@ -195,7 +195,7 @@ jobs:
           export GHCR_IMAGE="${GHCR_IMAGE_REF%%:*}"
           export GHCR_TAG="${GHCR_IMAGE_REF##*:}"
           echo "Testing published image: ${GHCR_IMAGE}:${GHCR_TAG}"
-          task integration:test PROFILE=base
+          task test:integration PROFILE=base
 
   # ═══════════════════════════════════════════════════════════════════════════
   # STAGE 5: SUMMARY (provides unified status)

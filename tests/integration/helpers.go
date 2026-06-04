@@ -34,6 +34,18 @@ func PostEvidence(webhookURL, fixturePath string) (*http.Response, error) {
 	return HTTPClient.Do(req)
 }
 
+// PostEvidenceBytes POSTs raw JSON evidence bytes to the webhook endpoint.
+// Returns the HTTP response for status code assertions.
+func PostEvidenceBytes(webhookURL string, body []byte) (*http.Response, error) {
+	req, err := http.NewRequest(http.MethodPost, webhookURL+"/eventsource/receiver", bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("creating request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	return HTTPClient.Do(req)
+}
+
 // LokiQueryResponse is the envelope returned by Loki's query_range API.
 type LokiQueryResponse struct {
 	Status string `json:"status"`
@@ -199,7 +211,7 @@ func CheckStackRunning(webhookURL, profile string) error {
 	if err != nil {
 		return fmt.Errorf(
 			"stack not running — webhook healthcheck at %s failed.\n"+
-				"Start it with: task integration:up PROFILE=%s\nError: %v",
+				"Start it with: task test:integration:up PROFILE=%s\nError: %v",
 			endpoint, profile, err,
 		)
 	}
@@ -208,7 +220,7 @@ func CheckStackRunning(webhookURL, profile string) error {
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf(
 			"stack not running — webhook healthcheck at %s returned %d.\n"+
-				"Start it with: task integration:up PROFILE=%s",
+				"Start it with: task test:integration:up PROFILE=%s",
 			endpoint, resp.StatusCode, profile,
 		)
 	}

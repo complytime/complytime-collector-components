@@ -25,3 +25,4 @@ tasks:
     desc: Check for CRAP regressions against baseline for all modules
     cmds:
       - bash {{.ROOT_DIR}}/.taskfiles/scripts/go-module-runner.sh crapload-check
+

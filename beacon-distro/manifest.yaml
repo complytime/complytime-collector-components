@@ -13,7 +13,7 @@ dist:
 # When updating OTel versions:
 #   1. Update truthbeam/go.mod first (manual step, see DEVELOPMENT.md)
 #   2. Run `task version:sync` to propagate to this manifest
-#   3. Verify with `task integration:test`
+#   3. Verify with `task test:integration`
 #
 # The builder (ocb@v0.152.0) requires explicit versions in the manifest.
 # Versionless entries generate invalid go.mod syntax.

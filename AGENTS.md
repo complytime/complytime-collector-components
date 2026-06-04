@@ -53,10 +53,10 @@ task infra:undeploy      # Stop local stack — DESTRUCTIVE
   - `truthbeam/internal/client/client.gen.go` — regenerate with `task codegen:api-codegen`
   - `docs/attributes/*.md` — regenerate with `task codegen:weaver-docsgen`
 - **Build automation**: Use `task` (taskfile.dev), not `make`. A deprecated Makefile exists but is not maintained.
-- **External tools**: Install development tools with `task tools:install-all` or `task tools:install-weaver`. SHA256 checksums are pinned in `.tool_checksums` for supply chain security. Ginkgo CLI is managed as a `tool` directive in the root `go.mod` and invoked via `go tool ginkgo`.
+- **External tools**: Install development tools with `task tools:install-all` (installs weaver + complyctl) or individually with `task tools:install-weaver` / `task tools:install-complyctl`. SHA256 checksums are pinned in `.tool_checksums` for supply chain security. Ginkgo CLI is managed as a `tool` directive in the root `go.mod` and invoked via `go tool ginkgo`.
 - **Podman, not Docker**: Container operations use `podman` and `podman-compose`. Do not reference `docker` commands.
 - **Lint**: Go linting uses `.golangci.yml` (v2 format). Multi-language CI linting uses `.mega-linter.yml`. No pre-commit hooks — run `task lint` locally.
-- **Integration tests**: `tests/integration/` contains Ginkgo E2E tests and a mock Compass HTTP server. Run with `task integration:test` (all layers) or `task integration:test-profile PROFILE=base|storage|enrichment`. Do not recreate mock Compass — it already serves fixture-driven `/v1/enrich` responses.
+- **Integration tests**: `tests/integration/` contains Ginkgo E2E tests and a mock Compass HTTP server. Run with `task test:integration` (all layers) or `task test:integration PROFILE=base|storage|enrichment`. The `compliance` profile runs separately (`task test:integration PROFILE=compliance`) and requires `task test:compliance:pull` to fetch upstream policy bundles from Quay.io first. Do not recreate mock Compass — it already serves fixture-driven `/v1/enrich` responses.
 - **Standards**: All coding standards are in `.specify/memory/constitution.md`. For architecture context, see `docs/DESIGN.md`. For dev setup, see `docs/DEVELOPMENT.md`.
 
 ## Local Dev Stack
@@ -97,6 +97,14 @@ All commits MUST use Conventional Commits, the `-s` flag (Signed-off-by), and in
 - **Podman rootless volume permissions**: The collector runs as UID 10001. Host-mounted volumes need the `:U` flag (podman ownership remapping) or the container can't write. The `:Z` flag alone only handles SELinux relabeling.
 - **S3 test portability**: Don't depend on host-installed CLI tools (`aws`, `mc`). The test bucket is configured with anonymous public access via `rc anonymous set public` in `rustfs-init`, so tests can query the S3 ListObjectsV2 API with plain HTTP — no auth headers needed.
 - **awss3 exporter partitioning**: When `resource_attrs_to_s3.s3_prefix` is set, it replaces (not appends to) the static `s3_prefix`. Objects land at `{resource_attr_value}/evidence_logs_{uuid}.json`, not `{s3_prefix}/{resource_attr_value}/...`.
+
+## CI Workflow Gotchas
+
+- **`artifact-metadata` is not a valid GitHub Actions permission**: A previous commit added `artifact-metadata: write` to `ci_publish_ghcr.yml`, believing it was required by `actions/attest`. This caused `ci_local.yml` to fail at startup (`startup_failure`) because GitHub validates all referenced reusable workflows — including their permission blocks — before starting any job. The correct scope for build provenance attestations is `attestations: write`.
+- **Reusable workflow permission validation is global**: When `ci_local.yml` calls `ci_publish_ghcr.yml` via `uses:`, GitHub parses and validates the called workflow's permissions block even if the calling job wouldn't run it. An invalid permission in any reusable workflow breaks the entire caller.
+- **Required permissions for GHCR publish with attestations**: The `build-beacon-distro` job in `ci_publish_ghcr.yml` needs exactly: `contents: read`, `packages: write`, `id-token: write`, `actions: read`, `attestations: write`. Use `actions: read` (not `write`) for least privilege.
+- **Quay publish has no attestation support**: `ci_publish_quay.yml` does not use `actions/attest` and does not need `attestations` or `id-token` permissions. Quay authentication uses `QUAY_USERNAME` and `QUAY_PASSWORD` repository secrets.
+- **Validate with `actionlint`**: Run `actionlint .github/workflows/*.yml` locally before pushing workflow changes. It catches invalid permission scopes, syntax errors, and expression issues that GitHub only reports at runtime.
 
 ## Active Technologies
 

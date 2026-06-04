@@ -1,0 +1,36 @@
+version: "3"
+
+vars:
+  COMPLYCTL_WORKSPACE: "tests/integration"
+  POLICY_STORE: "{{.HOME}}/.complytime/policies/complytime/policies-ampel-branch-protection"
+
+tasks:
+  default:
+    silent: true
+    cmd: task test:compliance --list
+
+  pull:
+    desc: "Pull ampel-branch-protection bundle from Quay.io via complyctl"
+    deps:
+      - task: :tools:install-complyctl
+    dir: "{{.COMPLYCTL_WORKSPACE}}"
+    status:
+      - test -f {{.POLICY_STORE}}/index.json
+    cmds:
+      - cmd: |
+          echo "Pulling ampel-branch-protection v0.1.0 from Quay.io..."
+          complyctl get 2>&1 || {
+            echo "WARNING: complyctl get failed — compliance tests will be skipped" >&2
+            exit 0
+          }
+
+  pull-force:
+    desc: "Force re-pull ampel-branch-protection bundle"
+    cmds:
+      - task: clean
+      - task: pull
+
+  clean:
+    desc: "Remove cached compliance policy artifacts"
+    cmds:
+      - rm -rf {{.POLICY_STORE}}

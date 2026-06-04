@@ -190,7 +190,7 @@ This syncs the versions to all workspace modules, Containerfiles, and CI configs
 
 ```bash
 task test
-task integration:test
+task test:integration
 ```
 
 ### Troubleshooting Version Conflicts
@@ -271,13 +271,14 @@ cd truthbeam && go test -v ./...
 
 ### Integration Testing
 
-The project includes automated integration tests using [Ginkgo](https://onsi.github.io/ginkgo/) that validate the evidence pipeline at three deployment layers:
+The project includes automated integration tests using [Ginkgo](https://onsi.github.io/ginkgo/) that validate the evidence pipeline at multiple deployment layers:
 
-| Layer      | Profile      | What it tests                         |
-|------------|--------------|---------------------------------------|
-| Base       | *(default)*  | OCSF transform + Loki export          |
-| Storage    | `storage`    | S3 evidence export + partitioning     |
-| Enrichment | `enrichment` | TruthBeam enrichment via mock Compass |
+| Layer      | Profile      | What it tests                                          |
+|------------|--------------|--------------------------------------------------------|
+| Base       | *(default)*  | OCSF transform + Loki export                           |
+| Storage    | `storage`    | S3 evidence export + partitioning                      |
+| Enrichment | `enrichment` | TruthBeam enrichment via mock Compass                  |
+| Compliance | `compliance` | Upstream policy parsing, per-control pipeline + S3 + enrichment |
 
 **Prerequisites:**
 - Podman and podman-compose
@@ -286,15 +287,16 @@ The project includes automated integration tests using [Ginkgo](https://onsi.git
 **Run all layers:**
 
 ```bash
-task integration:test
+task test:integration
 ```
 
 **Run a single layer:**
 
 ```bash
-task integration:test-profile PROFILE=base
-task integration:test-profile PROFILE=storage
-task integration:test-profile PROFILE=enrichment
+task test:integration PROFILE=base
+task test:integration PROFILE=storage
+task test:integration PROFILE=enrichment
+task test:integration PROFILE=compliance  # requires OCI policy bundle; auto-pulls via complyctl
 ```
 
 Each run builds the collector image, starts the appropriate services, runs the matching Ginkgo test suite (filtered by label), and tears down. Certificates are generated automatically if missing. Test output is written to `.test-output/integration/`.

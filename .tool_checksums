@@ -4,5 +4,8 @@
 # Weaver v0.21.2  
 weaver/v0.21.2/linux/x86_64/weaver-x86_64-unknown-linux-gnu.tar.xz: b219f2de44ea3667c28356cd4860084983d146b694342a4ee52f349b38e7389f
 
+# complyctl v1.0.0-alpha.0
+complyctl/v1.0.0-alpha.0/linux/x86_64/complyctl_linux_x86_64.tar.gz: cf06218076fcec809065e615abd29582527915d569691493fe0e95a03c9302b7
+
 # Add new tools here following the same pattern
 # Format: tool_name/version/platform/architecture/filename: sha256_hash

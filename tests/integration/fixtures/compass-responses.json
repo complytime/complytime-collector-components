@@ -26,5 +26,75 @@
         "requirements": ["OSPS-QA-07.02"]
       }
     }
+  },
+  "pull-request-enforcement": {
+    "compliance": {
+      "control": {
+        "id": "pull-request-enforcement",
+        "catalogId": "repo-branch-protection",
+        "category": "Source Code"
+      },
+      "enrichmentStatus": "Success",
+      "frameworks": {
+        "frameworks": ["AMPEL Branch Protection"],
+        "requirements": ["require-pull-request"]
+      }
+    }
+  },
+  "approval-requirements": {
+    "compliance": {
+      "control": {
+        "id": "approval-requirements",
+        "catalogId": "repo-branch-protection",
+        "category": "Source Code"
+      },
+      "enrichmentStatus": "Success",
+      "frameworks": {
+        "frameworks": ["AMPEL Branch Protection"],
+        "requirements": ["minimum-approvals"]
+      }
+    }
+  },
+  "force-push-restriction": {
+    "compliance": {
+      "control": {
+        "id": "force-push-restriction",
+        "catalogId": "repo-branch-protection",
+        "category": "Source Code"
+      },
+      "enrichmentStatus": "Success",
+      "frameworks": {
+        "frameworks": ["AMPEL Branch Protection"],
+        "requirements": ["block-force-push"]
+      }
+    }
+  },
+  "admin-bypass-prevention": {
+    "compliance": {
+      "control": {
+        "id": "admin-bypass-prevention",
+        "catalogId": "repo-branch-protection",
+        "category": "Source Code"
+      },
+      "enrichmentStatus": "Success",
+      "frameworks": {
+        "frameworks": ["AMPEL Branch Protection"],
+        "requirements": ["prevent-admin-bypass"]
+      }
+    }
+  },
+  "code-owner-enforcement": {
+    "compliance": {
+      "control": {
+        "id": "code-owner-enforcement",
+        "catalogId": "repo-branch-protection",
+        "category": "Source Code"
+      },
+      "enrichmentStatus": "Success",
+      "frameworks": {
+        "frameworks": ["AMPEL Branch Protection"],
+        "requirements": ["require-code-owner-review"]
+      }
+    }
   }
 }

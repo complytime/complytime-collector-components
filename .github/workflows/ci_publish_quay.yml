@@ -30,8 +30,34 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  check-secrets:
+    name: Verify Quay Credentials
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check required secrets
+        env:
+          HAS_USERNAME: ${{ secrets.QUAY_USERNAME != '' }}
+          HAS_PASSWORD: ${{ secrets.QUAY_PASSWORD != '' }}
+        run: |
+          MISSING=()
+          if [[ "$HAS_USERNAME" != "true" ]]; then
+            MISSING+=("QUAY_USERNAME")
+          fi
+          if [[ "$HAS_PASSWORD" != "true" ]]; then
+            MISSING+=("QUAY_PASSWORD")
+          fi
+          if [[ ${#MISSING[@]} -gt 0 ]]; then
+            echo "::error::Missing required secrets: ${MISSING[*]}"
+            echo ""
+            echo "Configure these secrets in the repository or organization settings:"
+            echo "  Settings → Secrets and variables → Actions → New repository secret"
+            exit 1
+          fi
+          echo "Quay credentials configured."
+
   setup:
     name: Validate Release
+    needs: check-secrets
     runs-on: ubuntu-latest
     outputs:
       source_tag: ${{ steps.vars.outputs.source_tag }}
