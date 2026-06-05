@@ -5,7 +5,8 @@ RUN go mod download
 COPY main.go ./
 RUN CGO_ENABLED=0 go build -o mock-compass .
 
-FROM registry.access.redhat.com/ubi10/ubi-micro@sha256:1983e3d2fa54a1afedf015ad4d8f9cfaeed15182d9cf532e5cb35de2c1bda580
+FROM registry.access.redhat.com/ubi10/ubi-minimal@sha256:2c20ac20ca1ecbbbd583603feabd9cc51e7e8ea5a82e5088e20a9494794b2574
+RUN microdnf update -y && microdnf clean all
 COPY --from=build /build/mock-compass /mock-compass
 HEALTHCHECK --interval=5s --timeout=3s --start-period=5s --retries=3 \
   CMD ["/mock-compass", "-healthcheck"]

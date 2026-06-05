@@ -121,5 +121,5 @@ All commits MUST use Conventional Commits, the `-s` flag (Signed-off-by), and in
 - golangci-lint v2, MegaLinter, SonarCloud, gaze (quality tooling)
 - Task v3 ([taskfile.dev](https://taskfile.dev)) — build automation
 - Podman + podman-compose (container runtime)
-- Container: UBI10 Minimal (certs), golang:1.26.3 (build), UBI10 Micro (runtime)
+- Container: UBI10 Minimal (runtime), golang:1.26.3 (build)
 - Registries: `ghcr.io` (primary), Quay.io (secondary)

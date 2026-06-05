@@ -141,7 +141,7 @@ tasks:
       # Ensure data directory exists and is writable by the collector (UID 10001).
       # Previously compose.yaml used the podman-only :U flag for UID remapping;
       # creating the directory up-front is portable across Docker and Podman.
-      - mkdir -p data && chmod 777 data
+      - mkdir -p .test-output/integration/data && chmod 777 .test-output/integration/data
       - "{{.COMPOSE_CMD}} {{.COMPOSE_FILES}} {{.COMPOSE_PROFILES}} up -d"
       - task: wait
         vars: { PROFILE: "{{.PROFILE}}", COMPOSE_FILES: "{{.COMPOSE_FILES}}" }
@@ -193,7 +193,7 @@ tasks:
       - task: ensure-certs
       - task: build-if-local
         vars: { USE_GHCR_IMAGE: "{{.USE_GHCR_IMAGE}}" }
-      - mkdir -p data && chmod 777 data
+      - mkdir -p .test-output/integration/data && chmod 777 .test-output/integration/data
       - "{{.COMPOSE_CMD}} {{.COMPOSE_FILES}} {{.COMPOSE_PROFILES}} up -d --build"
       - task: wait
         vars: { PROFILE: "{{.PROFILE}}", COMPOSE_FILES: "{{.COMPOSE_FILES}}" }

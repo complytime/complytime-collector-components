@@ -157,7 +157,7 @@ services:
     command: ["--config=/etc/otel-collector.yaml"]
     volumes:
       - ./${COLLECTOR_CONFIG:-configs/collector-base.yaml}:/etc/otel-collector.yaml:z
-      - ./data:/data:z
+      - ./.test-output/integration/data:/data:z
       - ./certs:/certs:z
     ports:
       - "${OTLP_PORT:-4317}:4317"
@@ -181,7 +181,7 @@ services:
     command: ["--config=/etc/otel-collector.yaml"]
     volumes:
       - ./${COLLECTOR_CONFIG:-configs/collector-storage-tls.yaml}:/etc/otel-collector.yaml:z
-      - ./data:/data:z
+      - ./.test-output/integration/data:/data:z
       - ./certs:/certs:z
     ports:
       - "${OTLP_PORT:-4317}:4317"
