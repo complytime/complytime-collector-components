@@ -89,10 +89,10 @@ If no open PR exists for the current branch: **STOP** with error:
 Retrieve PR metadata first — avoid loading the full diff until needed:
 
 ```bash
-gh pr view <PR_NUMBER> --json title,body,files,additions,deletions,baseRefName,headRefName,labels,milestone,commits,reviewDecision,reviewRequests
+gh pr view <PR_NUMBER> --json title,body,files,additions,deletions,baseRefName,headRefName,labels,milestone,commits
 ```
 
-Record the PR title, description, branch name, base branch, changed file list, current review decision (`REVIEW_REQUIRED`, `APPROVED`, `CHANGES_REQUESTED`), and pending review requests. **Do NOT fetch the full diff yet** — later steps determine which files need AI analysis.
+Record the PR title, description, branch name, base branch, and changed file list. **Do NOT fetch the full diff yet** — later steps determine which files need AI analysis.
 
 ### 3. Fetch CI Check Results
 
@@ -355,87 +355,9 @@ Use pack rules (CS-001, AP-001, SC-001, TC-001, DR-001, etc.) alongside the cons
 
 **If packs are NOT available**: proceed without them. Use the constitution and inline severity definitions only. No error or warning needed.
 
-### 7.5. Fetch Existing Review State
-
-Fetch existing PR reviews and inline comments to prevent
-duplicate findings and provide context for the AI review.
-
-#### 7.5a. Fetch Reviews
-
-```bash
-gh api repos/{owner}/{repo}/pulls/<PR_NUMBER>/reviews \
-  --jq '[.[] | {id: .id, user: .user.login, state: .state, body: .body, submitted_at: .submitted_at, commit_id: .commit_id}]'
-```
-
-Record each review's user, state (`APPROVED`,
-`CHANGES_REQUESTED`, `COMMENTED`, `DISMISSED`), body,
-and commit ID.
-
-#### 7.5b. Fetch Inline Comments
-
-```bash
-gh api repos/{owner}/{repo}/pulls/<PR_NUMBER>/comments \
-  --jq '[.[] | {path: .path, line: .line, body: .body, user: .user.login, created_at: .created_at}]'
-```
-
-Record each inline comment's file path, line number,
-body, and author.
-
-#### 7.5c. Identify Current User
-
-```bash
-gh api user --jq '.login'
-```
-
-Record the authenticated user's login for duplicate
-review detection in Step 11.
-
-#### 7.5d. Token Budget
-
-Existing review comments passed to Step 8 MUST be capped
-at 3000 characters total to prevent token bloat. When the
-combined comment text exceeds this limit:
-1. Filter to comments on files changed in this PR
-2. Sort by `created_at` descending (most recent first)
-3. Include comments until the 3000-character budget is
-   exhausted
-4. Truncate the remainder with a note: "N additional
-   prior comments truncated for token budget"
-
-#### 7.5e. Error Handling
-
-If any `gh api` call in this step returns 403, 404, or
-times out:
-- Log the error
-- Skip the failed sub-step
-- Proceed to Step 8 without the missing context
-
-The review continues without blocking. All review state
-data is additive context — its absence does not reduce
-the review's capability, only its deduplication accuracy.
-
 ### 8. AI Review (Judgment-Based Only)
 
 Focus AI analysis exclusively on what deterministic tools and CI cannot check. Skip any category where local tools or CI already passed.
-
-**Existing review deduplication** (using Step 7.5 data):
-Before generating findings, cross-reference existing
-inline comments from Step 7.5b against the current
-analysis. For each finding:
-- If an existing inline comment covers the same file and
-  line range with a similar concern: **annotate** the
-  finding as "previously raised by @user" rather than
-  presenting it as new. Include the annotation in the
-  output.
-- If an existing review thread appears resolved (the
-  author pushed fixes after the comment): **acknowledge**
-  this in the finding context.
-- If prior reviewer discussions provide relevant context
-  for a finding: **reference** them (e.g., "Related to
-  @user's comment on the same file").
-- Do NOT fully suppress findings — the current review may
-  have additional context or a different severity
-  assessment. Annotate, don't hide.
 
 **Path-based review focus**: Before starting the review,
 classify each changed file against these built-in
@@ -705,72 +627,6 @@ before posting anything.
 ```
 
 **If the user agrees**:
-
-#### 11a. Pre-posting Checks
-
-Before preparing comments, run three state-awareness
-checks using data from Step 7.5:
-
-**Duplicate review detection**: Check if a review from
-the current user (Step 7.5c) already exists in the
-review list (Step 7.5a):
-
-- If a prior review with the **same verdict** exists:
-  ```
-  You already have an <APPROVE/REQUEST_CHANGES> review
-  on this PR. Post a new one? (The latest review takes
-  precedence.)
-  (yes/no)
-  ```
-- If a prior review with a **different verdict** exists:
-  ```
-  You have a prior <old_verdict> review. Post a new
-  <new_verdict>? This will override the previous
-  verdict.
-  (yes/no)
-  ```
-- If no prior review exists: proceed silently.
-
-**Stale review + CODEOWNER checks** (APPROVE verdicts
-only): Fetch branch protection settings in a single API
-call to avoid redundant requests:
-
-```bash
-gh api repos/{owner}/{repo}/branches/<baseRefName>/protection \
-  --jq '{dismiss_stale: .required_pull_request_reviews.dismiss_stale_reviews, require_codeowners: .required_pull_request_reviews.require_code_owner_reviews}'
-```
-
-If the API returns 404 (no branch protection) or 403
-(insufficient permissions): skip both checks silently.
-
-If `dismiss_stale` is true, display:
-```
-Warning: This repo dismisses stale reviews. If the author
-pushes any new commits after this APPROVE, it will be
-automatically invalidated and the PR will return to
-REVIEW_REQUIRED. You may need to re-run /review-pr after
-final commits.
-```
-
-If `require_codeowners` is true, check for CODEOWNERS
-file:
-
-```bash
-gh api repos/{owner}/{repo}/contents/CODEOWNERS \
-  --jq '.name' 2>/dev/null || \
-gh api repos/{owner}/{repo}/contents/.github/CODEOWNERS \
-  --jq '.name' 2>/dev/null
-```
-
-If CODEOWNERS exists and `require_code_owner_reviews` is
-true, display:
-```
-Warning: This repo requires code owner reviews. This
-APPROVE may not satisfy branch protection if this
-account is not listed in CODEOWNERS.
-```
-
-If any API call fails: skip silently.
 
 1. **Prepare comments**: For each finding that maps to a
    specific file and line range in the diff, prepare an
