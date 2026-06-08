@@ -81,7 +81,7 @@ jobs:
       actions: read # access reusable workflow
       attestations: write # publish build provenance
     # zizmor:ignore ref-version-mismatch - Fix update for the job
-    uses: complytime/org-infra/.github/workflows/reusable_publish_ghcr.yml@a82d1342e281aac41581e646b26c3c6abfa68bc2 # experimental
+    uses: complytime/org-infra/.github/workflows/reusable_publish_ghcr.yml@2c193416adbc621a64021ace52bf57114d703888 # experimental
     with:
       component_name: beacon-distro
       containerfile_path: beacon-distro/Containerfile.collector
