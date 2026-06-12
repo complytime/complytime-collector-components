@@ -20,6 +20,3 @@ jobs:
     permissions:
       contents: read
       issues: read
-    # Image publishing is handled exclusively by ci_local.yml, which gates
-    # the publish step behind all quality checks (lint, test, codegen verify,
-    # integration tests). Duplicating it here caused redundant builds.
