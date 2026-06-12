@@ -140,7 +140,7 @@ jobs:
       security-events: write # upload SARIF results
       id-token: write # OIDC for registry auth
       actions: read # required by osv_scanner nested job
-    uses: complytime/org-infra/.github/workflows/reusable_vuln_scan.yml@cfd981e757253218aefb37c91969c32827e5c4b1 # v0.2.1
+    uses: complytime/org-infra/.github/workflows/reusable_vuln_scan.yml@2c193416adbc621a64021ace52bf57114d703888 # v0.3.1
     with:
       enable_osv: false
       enable_trivy_source: false
