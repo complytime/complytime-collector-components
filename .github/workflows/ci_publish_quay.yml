@@ -143,7 +143,7 @@ jobs:
       packages: read # pull source image from GHCR
       id-token: write # OIDC for keyless cosign signing on destination
     # upstream filename is misspelled (resuable); do not "fix" or the reference will 404
-    uses: complytime/org-infra/.github/workflows/resuable_publish_quay.yml@11de1e8793c760ee62ea07cc43505be7ed11c151 # unstable
+    uses: complytime/org-infra/.github/workflows/resuable_publish_quay.yml@65e36d56c0fc964d93b2114a383900ddb4ae4c6b # unstable
     with:
       source_registry: ghcr.io
       source_image: complytime/complybeacon-beacon-distro
