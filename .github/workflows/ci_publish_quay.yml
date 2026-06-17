@@ -55,6 +55,98 @@ jobs:
           fi
           echo "Quay credentials configured."
 
+  wait-for-ci:
+    name: Wait for CI
+    needs: check-secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      actions: read
+    steps:
+      - name: Wait for required checks on tagged commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMIT_SHA: ${{ inputs.source_sha || github.sha }}
+          CURRENT_RUN_ID: ${{ github.run_id }}
+        run: |
+          REPO="${GITHUB_REPOSITORY}"
+          TIMEOUT=3600  # 60 minutes
+          INTERVAL=30
+          ELAPSED=0
+
+          # Validate SHA format before API call (defense in depth — setup job
+          # also validates, but runs in parallel with this job)
+          if [[ ! "$COMMIT_SHA" =~ ^[a-f0-9]{7,40}$ ]]; then
+            echo "::error::Invalid SHA format: $COMMIT_SHA"
+            exit 1
+          fi
+
+          # Resolve short SHA to full SHA (also validates the SHA exists)
+          FULL_SHA=$(gh api "repos/${REPO}/commits/${COMMIT_SHA}" --jq '.sha') || {
+            echo "::error::Commit ${COMMIT_SHA} not found in ${REPO}"
+            exit 1
+          }
+          echo "Waiting for CI on commit ${FULL_SHA:0:7}..."
+
+          # For workflow_dispatch the CI runs should already exist — don't wait
+          # the full timeout if the commit simply never had any CI runs.
+          IS_DISPATCH="${{ github.event_name == 'workflow_dispatch' }}"
+          NO_RUNS_LIMIT=120  # 2 minutes before giving up on finding runs
+
+          while [ "$ELAPSED" -lt "$TIMEOUT" ]; do
+            # Get the latest run per workflow for this commit, excluding ourselves.
+            # group_by(workflow_id) + sort_by(run_started_at) handles re-runs: only
+            # the most recent attempt of each workflow matters.
+            LATEST_RUNS=$(gh api "repos/${REPO}/actions/runs?head_sha=${FULL_SHA}&per_page=100" \
+              --jq "[.workflow_runs
+                     | group_by(.workflow_id)
+                     | .[]
+                     | sort_by(.run_started_at)
+                     | last
+                     | select(.id != ${CURRENT_RUN_ID})]")
+
+            TOTAL=$(echo "$LATEST_RUNS" | jq 'length')
+
+            if [ "$TOTAL" -eq 0 ]; then
+              if [ "$IS_DISPATCH" = "true" ] && [ "$ELAPSED" -ge "$NO_RUNS_LIMIT" ]; then
+                echo "::error::No CI runs found for ${FULL_SHA:0:7} after ${NO_RUNS_LIMIT}s"
+                echo "The commit may not have been pushed to main, or CI was never triggered."
+                exit 1
+              fi
+              echo "No CI runs found yet for ${FULL_SHA:0:7} (${ELAPSED}s elapsed)"
+              sleep "$INTERVAL"
+              ELAPSED=$((ELAPSED + INTERVAL))
+              continue
+            fi
+
+            PENDING=$(echo "$LATEST_RUNS" | jq '[.[] | select(.status != "completed")] | length')
+
+            if [ "$PENDING" -gt 0 ]; then
+              NAMES=$(echo "$LATEST_RUNS" | jq -r '.[] | select(.status != "completed") | .name' | paste -sd ', ')
+              echo "  ${PENDING}/${TOTAL} still running: ${NAMES} (${ELAPSED}s elapsed)"
+              sleep "$INTERVAL"
+              ELAPSED=$((ELAPSED + INTERVAL))
+              continue
+            fi
+
+            # All completed — check for failures
+            FAILED=$(echo "$LATEST_RUNS" | jq '[.[] | select(.conclusion == "failure" or .conclusion == "cancelled" or .conclusion == "timed_out")] | length')
+
+            if [ "$FAILED" -gt 0 ]; then
+              echo "::error::CI failed for ${FULL_SHA:0:7}:"
+              echo "$LATEST_RUNS" | jq -r '.[] | select(.conclusion == "failure" or .conclusion == "cancelled" or .conclusion == "timed_out") | "  \(.name): \(.conclusion) — \(.html_url)"'
+              exit 1
+            fi
+
+            echo "All ${TOTAL} CI workflows passed for ${FULL_SHA:0:7}."
+            exit 0
+          done
+
+          echo "::error::Timed out after ${TIMEOUT}s waiting for CI on ${FULL_SHA:0:7}"
+          echo "Still running:"
+          echo "$LATEST_RUNS" | jq -r '.[] | select(.status != "completed") | "  \(.name): \(.status) — \(.html_url)"'
+          exit 1
+
   setup:
     name: Validate Release
     needs: check-secrets
@@ -85,7 +177,7 @@ jobs:
 
   verify-ghcr-image:
     name: Verify GHCR Image Exists
-    needs: setup
+    needs: [setup, wait-for-ci]
     runs-on: ubuntu-latest
     permissions:
       packages: read
