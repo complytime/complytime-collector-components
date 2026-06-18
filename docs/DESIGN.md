@@ -132,7 +132,7 @@ err = pw.LogWithSeverity(ctx, evidence, olog.SeverityWarn)
 **Key Responsibilities**:
 * Maintains a local, in-memory cache of previously enriched data to reduce API calls and improve performance.
 * Queries the Compass API for enrichment data based on attributes in the log record.
-* Skips enrichment on API failures, tagging the log record with an enrichment_status: skipped attribute to enable graceful degradation.
+* Skips enrichment on API failures, logging the error and continuing without dropping the log record to enable graceful degradation.
 * Adds the returned enrichment data as new attributes to the log record.
 
 ### 4. Compass

@@ -178,6 +178,72 @@ To export evidence to a real AWS S3 bucket, override the defaults by exporting e
 
 Production deployments should use a dedicated collector configuration with `disable_ssl: false` and `s3_force_path_style: false`. See [Sync_Evidence2Hyperproof](docs/integration/Sync_Evidence2Hyperproof.md) for the full AWS integration guide.
 
+### 4. Authentication
+
+Beacon bundles two OTel Collector auth extensions but does **not** enable them by default — the shipped configs prioritize development simplicity.
+
+| Extension | Direction | Purpose |
+|-----------|-----------|---------|
+| `oidcauthextension` | Inbound | Validates OIDC (JWT) tokens on incoming OTLP requests |
+| `bearertokenauthextension` | Outbound | Attaches a static bearer token to outgoing HTTP requests |
+
+#### Configuring OIDC on OTLP Receivers
+
+To require OIDC authentication on incoming OTLP gRPC/HTTP requests, add the extension and reference it from the receiver:
+
+```yaml
+extensions:
+  oidc:
+    providers:
+      - issuer_url: https://your-idp.example.com/realms/your-realm
+        audience: your-client-id
+        username_claim: email
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+        auth:
+          authenticator: oidc
+      http:
+        endpoint: 0.0.0.0:4318
+        auth:
+          authenticator: oidc
+
+service:
+  extensions: [oidc]
+  pipelines:
+    logs/analysis_pipeline:
+      receivers: [otlp]
+      # ... processors and exporters
+```
+
+The extension discovers the provider's signing keys via the standard `/.well-known/openid-configuration` endpoint. Requests without a valid JWT are rejected at the receiver.
+
+> **Note:** The webhook receiver does not support OTel auth extensions. Only OTLP gRPC and HTTP receivers can be protected with OIDC.
+
+#### Configuring Bearer Token on Outbound Calls
+
+To attach a static bearer token to outbound HTTP requests (e.g., TruthBeam calling Compass):
+
+```yaml
+extensions:
+  bearertokenauth:
+    token: ${COMPASS_BEARER_TOKEN}
+
+processors:
+  truthbeam:
+    endpoint: "https://compass:8081"
+    auth:
+      authenticator: bearertokenauth
+
+service:
+  extensions: [bearertokenauth]
+```
+
+The extension adds `Authorization: Bearer <token>` to every request made by the processor's HTTP client.
+
 ## Development
 
 ### Task Commands

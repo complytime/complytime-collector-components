@@ -1,0 +1,35 @@
+issuer: http://dex:5556
+
+storage:
+  type: memory
+
+web:
+  http: 0.0.0.0:5556
+
+oauth2:
+  passwordConnector: local
+  skipApprovalScreen: true
+
+expiry:
+  idTokens: "5s"
+
+enablePasswordDB: true
+
+staticClients:
+  - id: beacon-collector
+    name: Beacon Collector
+    public: true
+    redirectURIs:
+      - http://localhost:5556/callback
+  - id: wrong-audience
+    name: Wrong Audience Client
+    public: true
+    redirectURIs:
+      - http://localhost:5556/callback
+
+staticPasswords:
+  - email: "test@complybeacon.dev"
+    # bcrypt hash of "testpassword"
+    hash: "$2b$10$Gl1vGoqFWhYjo9uRiBkF5egOoJO6pnhCWCYHK6uSFmWptUtfPpa6."
+    username: "testuser"
+    userID: "test-user-001"

@@ -1,0 +1,184 @@
+extensions:
+  oidc:
+    providers:
+      - issuer_url: http://dex:5556
+        audience: beacon-collector
+        username_claim: email
+  bearertokenauth:
+    token: ${COMPASS_BEARER_TOKEN:-test-compass-token}
+
+receivers:
+  webhookevent:
+    endpoint: 0.0.0.0:8088
+    read_timeout: "500ms"
+    path: "/eventsource/receiver"
+    health_path: "/eventreceiver/healthcheck"
+    split_logs_at_newline: false
+
+  filelog/metrics:
+    include:
+      - /data/metrics.jsonl
+    start_at: end
+    poll_interval: 250ms
+    operators:
+      - type: json_parser
+        id: parser-metrics
+        output: extract_metric_data
+      - type: add
+        id: extract_metric_data
+        field: attributes.service_name
+        value: "signaltometrics"
+
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+        auth:
+          authenticator: oidc
+      http:
+        endpoint: 0.0.0.0:4318
+        auth:
+          authenticator: oidc
+
+processors:
+  batch:
+  batch/metrics:
+    timeout: 1s
+    send_batch_size: 10
+  truthbeam:
+    endpoint: "https://compass:8081"
+    compression: ""
+    tls:
+      ca_file: /certs/truthbeam.crt
+    auth:
+      authenticator: bearertokenauth
+
+  transform/metrics_to_logs:
+    error_mode: ignore
+    log_statements:
+      - context: log
+        conditions:
+          - attributes["service_name"] == "signaltometrics"
+        statements:
+          - set(attributes["_metric_parsed"], true) where IsMap(ParseJSON(body))
+          - set(attributes["metric_name"], ParseJSON(body)["resourceMetrics"][0]["scopeMetrics"][0]["metrics"][0]["name"]) where IsMap(ParseJSON(body)) and ParseJSON(body)["resourceMetrics"] != nil
+          - set(attributes["metric_value"], ParseJSON(body)["resourceMetrics"][0]["scopeMetrics"][0]["metrics"][0]["sum"]["dataPoints"][0]["asDouble"]) where ParseJSON(body)["resourceMetrics"] != nil and ParseJSON(body)["resourceMetrics"][0]["scopeMetrics"][0]["metrics"][0]["sum"] != nil and ParseJSON(body)["resourceMetrics"][0]["scopeMetrics"][0]["metrics"][0]["sum"]["dataPoints"][0]["asDouble"] != nil
+          - set(attributes["metric_value"], ParseJSON(body)["resourceMetrics"][0]["scopeMetrics"][0]["metrics"][0]["sum"]["dataPoints"][0]["asInt"]) where ParseJSON(body)["resourceMetrics"] != nil and ParseJSON(body)["resourceMetrics"][0]["scopeMetrics"][0]["metrics"][0]["sum"] != nil and ParseJSON(body)["resourceMetrics"][0]["scopeMetrics"][0]["metrics"][0]["sum"]["dataPoints"][0]["asInt"] != nil
+          - merge_maps(attributes, ParseJSON(body)["resourceMetrics"][0]["scopeMetrics"][0]["metrics"][0]["sum"]["dataPoints"][0]["attributes"], "upsert") where ParseJSON(body)["resourceMetrics"] != nil and ParseJSON(body)["resourceMetrics"][0]["scopeMetrics"][0]["metrics"][0]["sum"]["dataPoints"][0]["attributes"] != nil
+          - merge_maps(attributes, ParseJSON(body)["resourceMetrics"][0]["resource"]["attributes"], "upsert") where ParseJSON(body)["resourceMetrics"] != nil and ParseJSON(body)["resourceMetrics"][0]["resource"]["attributes"] != nil
+          - set(body, attributes) where attributes["_metric_parsed"] == true
+
+  transform/ocsf:
+    error_mode: ignore
+    log_statements:
+      - context: log
+        conditions:
+          - body != nil
+        statements:
+          - set(observed_time, Now()) where observed_time_unix_nano == 0
+          - set(time, observed_time) where time_unix_nano == 0
+          - set(attributes["policy.rule.id"], ParseJSON(body)["policy"]["uid"]) where ParseJSON(body)["policy"]["uid"] != nil
+          - set(attributes["policy.control.id"], ParseJSON(ParseJSON(body)["policy"]["data"])["sources"][0]["name"]) where ParseJSON(body)["policy"]["data"] != nil and ParseJSON(ParseJSON(body)["policy"]["data"])["sources"] != nil and ParseJSON(ParseJSON(body)["policy"]["data"])["sources"][0]["name"] != nil
+          - set(attributes["policy.config.include"], ParseJSON(ParseJSON(body)["policy"]["data"])["sources"][0]["config"]["include"][0]) where ParseJSON(body)["policy"]["data"] != nil and ParseJSON(ParseJSON(body)["policy"]["data"])["sources"] != nil and ParseJSON(ParseJSON(body)["policy"]["data"])["sources"][0]["config"] != nil and ParseJSON(ParseJSON(body)["policy"]["data"])["sources"][0]["config"]["include"] != nil and Len(ParseJSON(ParseJSON(body)["policy"]["data"])["sources"][0]["config"]["include"]) > 0
+          - set(attributes["policy.engine.name"], ParseJSON(body)["metadata"]["product"]["name"]) where ParseJSON(body)["metadata"]["product"]["name"] != nil
+          - set(attributes["policy.evaluation.result"], "Passed") where ParseJSON(body)["status"] == "success"
+          - set(attributes["policy.evaluation.result"], "Failed") where ParseJSON(body)["status"] == "failure"
+          - set(attributes["policy.evaluation.result"], "Not Run") where ParseJSON(body)["status"] == "not_run"
+          - set(attributes["policy.evaluation.result"], "Needs Review") where ParseJSON(body)["status"] == "needs_review"
+          - set(attributes["policy.evaluation.result"], "Not Applicable") where ParseJSON(body)["status"] == "not_applicable"
+          - set(attributes["policy.evaluation.result"], "Unknown") where ParseJSON(body)["status"] == "unknown" or ParseJSON(body)["status"] == "error" or ParseJSON(body)["status"] == "timeout"
+          - set(attributes["policy.evaluation.result"], "Unknown") where ParseJSON(body)["status"] != nil and attributes["policy.evaluation.result"] == nil
+          - set(attributes["severity"], ParseJSON(body)["severity"]) where ParseJSON(body)["severity"] != nil
+          - set(resource.attributes["policy.rule.id"], attributes["policy.rule.id"]) where attributes["policy.rule.id"] != nil
+
+connectors:
+  signaltometrics:
+    logs:
+      - name: compliance.control.evaluations
+        description: "Total number of control evaluations"
+        unit: "1"
+        sum:
+          value: "1"
+      - name: compliance.control.evaluation.result
+        description: "Count of control evaluations by result (Passed/Failed/etc)"
+        unit: "1"
+        sum:
+          value: "1"
+      - name: compliance.control.status
+        description: "Count of control evaluations by compliance status"
+        unit: "1"
+        sum:
+          value: "1"
+      - name: compliance.control.config.include
+        description: "Count of control evaluations by policy config include value"
+        unit: "1"
+        sum:
+          value: "1"
+      - name: compliance.control.by.engine
+        description: "Count of control evaluations by policy engine"
+        unit: "1"
+        sum:
+          value: "1"
+      - name: compliance.control.by.category
+        description: "Count of control evaluations by control category"
+        unit: "1"
+        sum:
+          value: "1"
+      - name: compliance.control.by.enrichment.status
+        description: "Count of control evaluations by enrichment status"
+        unit: "1"
+        sum:
+          value: "1"
+      - name: compliance.control.by.severity
+        description: "Count of control evaluations by severity level"
+        unit: "1"
+        sum:
+          value: "1"
+
+exporters:
+  debug:
+    verbosity: detailed
+  otlphttp/logs:
+    endpoint: "http://loki:3100/otlp"
+    tls:
+      insecure: true
+  file/metrics:
+    path: /data/metrics.jsonl
+    format: json
+  awss3/logs:
+    s3uploader:
+      region: ${AWS_REGION}
+      s3_bucket: ${S3_BUCKETNAME}
+      s3_prefix: ${S3_OBJ_DIR}
+      endpoint: ${S3_ENDPOINT}
+      s3_force_path_style: true
+      disable_ssl: ${S3_DISABLE_SSL}
+      unique_key_func_name: uuidv7
+      s3_partition_format: ""
+      file_prefix: "evidence_"
+    resource_attrs_to_s3:
+      s3_prefix: "policy.rule.id"
+
+service:
+  extensions: [oidc, bearertokenauth]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [debug]
+    metrics/control_health:
+      receivers: [signaltometrics]
+      processors: [batch/metrics]
+      exporters: [debug, file/metrics]
+    logs/metrics_from_file:
+      receivers: [filelog/metrics]
+      processors: [batch/metrics, transform/metrics_to_logs]
+      exporters: [debug, otlphttp/logs]
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [debug]
+    logs/analysis_pipeline:
+      receivers: [webhookevent, otlp]
+      processors: [batch, transform/ocsf, truthbeam]
+      exporters: [debug, otlphttp/logs, awss3/logs, signaltometrics]

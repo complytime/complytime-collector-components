@@ -12,7 +12,7 @@ The `truthbeam` processor can be integrated into any OpenTelemetry Collector dis
 
 ### Example Code Snippet **Log -> Enrichment Request -> Enrichment Response -> Enriched Log**
 
-**Log Record:** The log record from the `sameple_logs.json` is an example of a log record that would be ingested by the `truthbeam` processor.
+**Log Record:** The log record from the `sample_logs.json` is an example of a log record that would be ingested by the `truthbeam` processor.
 
 ```json
  "attributes": [

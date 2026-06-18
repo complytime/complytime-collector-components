@@ -78,7 +78,10 @@ task workspace
 ```
 
 This creates a `go.work` file that includes all project modules:
+- `.` (root module — tool dependencies)
 - `./proofwatch`
+- `./tests/integration`
+- `./tests/integration/mock-compass`
 - `./truthbeam`
 
 ### 4. Install Dependencies
@@ -239,9 +242,11 @@ complybeacon/
 │   ├── config.yaml            # Collector configuration
 │   └── Containerfile.collector # Container definition
 ├── configs/                    # Deployment configs (collector, Loki)
+│   ├── collector-auth.yaml    # Auth layer: OIDC-secured OTLP receivers
 │   ├── collector-base.yaml    # Base layer: OCSF transform + Loki
-│   ├── collector-storage.yaml # Storage layer: adds S3 export
 │   ├── collector-enrichment.yaml # Enrichment layer: adds TruthBeam
+│   ├── collector-storage.yaml # Storage layer: adds S3 export
+│   ├── collector-storage-tls.yaml # Storage TLS layer: S3 with TLS
 │   └── loki.yaml              # Loki configuration
 ├── certs/                      # TLS certificate generation
 ├── deploy/                     # Deployment infrastructure (Terraform)

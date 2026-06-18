@@ -84,16 +84,16 @@ tasks:
       - |
         if [[ "{{.USE_GHCR_IMAGE}}" == "true" ]]; then
           echo "Using GHCR image: {{.GHCR_IMAGE}}:{{.GHCR_TAG}}"
-          COLLECTOR_IMAGE={{.GHCR_IMAGE}}:{{.GHCR_TAG}} podman-compose -f compose.yaml -f compose.ghcr.yaml up
+          COLLECTOR_IMAGE={{.GHCR_IMAGE}}:{{.GHCR_TAG}} podman-compose -f compose.yaml -f compose.ghcr.yaml --profile base up
         else
           echo "Using locally built image"
-          podman-compose -f compose.yaml up
+          podman-compose -f compose.yaml --profile base up
         fi
 
   undeploy:
     desc: Undeploy container stack — DESTRUCTIVE
     prompt: This will tear down the container stack. Are you sure?
-    cmd: podman-compose -f compose.yaml down -v
+    cmd: podman-compose -f compose.yaml down -v --remove-orphans
 
   deploy-with-ghcr:
     desc: Deploy using GHCR image (for CI/testing)

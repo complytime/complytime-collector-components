@@ -40,7 +40,7 @@ services:
 
   rustfs:
     image: "docker.io/rustfs/rustfs@sha256:d441111efe3af5bbd6e29eba7cd124f96bb7d49a0612390907f9216d5f970382" # v1.0.0-beta.3
-    profiles: [storage]
+    profiles: [storage, auth]
     environment:
       - RUSTFS_ACCESS_KEY=${AWS_ACCESS_KEY_ID:-rustfsadmin}
       - RUSTFS_SECRET_KEY=${AWS_SECRET_ACCESS_KEY:-rustfsadmin}
@@ -80,7 +80,7 @@ services:
 
   rustfs-init:
     image: "docker.io/rustfs/rc@sha256:ca85fbee9f96425446915cb08b41d5e246c782eeb3f6a00d3b8294fce5219891"
-    profiles: [storage]
+    profiles: [storage, auth]
     depends_on:
       - rustfs
     entrypoint: ["/bin/sh", "-c"]
@@ -128,12 +128,14 @@ services:
     build:
       context: ./tests/integration/mock-compass
       dockerfile: Containerfile
-    profiles: [enrichment]
+    profiles: [enrichment, auth]
     volumes:
       - ./tests/integration/fixtures/compass-responses.json:/fixtures/compass-responses.json:z
       - ./certs:/certs:z
     ports:
       - "${COMPASS_PORT:-8081}:8081"
+    environment:
+      - REQUIRE_AUTH_TOKEN=${REQUIRE_AUTH_TOKEN:-}
     healthcheck:
       test: ["CMD", "/mock-compass", "-healthcheck"]
       interval: 5s
@@ -145,6 +147,7 @@ services:
     build:
       context: .
       dockerfile: beacon-distro/Containerfile.collector
+    profiles: [base, storage, enrichment]
     environment:
       - AWS_REGION=${AWS_REGION:-us-east-1}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-rustfsadmin}
@@ -181,6 +184,48 @@ services:
     command: ["--config=/etc/otel-collector.yaml"]
     volumes:
       - ./${COLLECTOR_CONFIG:-configs/collector-storage-tls.yaml}:/etc/otel-collector.yaml:z
+      - ./.test-output/integration/data:/data:z
+      - ./certs:/certs:z
+    ports:
+      - "${OTLP_PORT:-4317}:4317"
+      - "${WEBHOOK_PORT:-8088}:8088"
+
+  dex:
+    image: "docker.io/dexidp/dex:v2.45.1"
+    profiles: [auth]
+    volumes:
+      - ./configs/dex.yaml:/etc/dex/config.yaml:z
+    command: ["dex", "serve", "/etc/dex/config.yaml"]
+    ports:
+      - "${DEX_PORT:-5556}:5556"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "--quiet", "http://localhost:5556/.well-known/openid-configuration"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  collector-auth:
+    image: complybeacon/collector:latest
+    build:
+      context: .
+      dockerfile: beacon-distro/Containerfile.collector
+    profiles: [auth]
+    environment:
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-rustfsadmin}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-rustfsadmin}
+      - S3_BUCKETNAME=${S3_BUCKETNAME:-complybeacon-evidence}
+      - S3_OBJ_DIR=${S3_OBJ_DIR:-evidence}
+      - S3_ENDPOINT=${S3_ENDPOINT:-http://rustfs:9000}
+      - S3_DISABLE_SSL=${S3_DISABLE_SSL:-true}
+      - COMPASS_BEARER_TOKEN=${COMPASS_BEARER_TOKEN:-test-compass-token}
+    restart: unless-stopped
+    depends_on:
+      dex:
+        condition: service_healthy
+    command: ["--config=/etc/otel-collector.yaml"]
+    volumes:
+      - ./configs/collector-auth.yaml:/etc/otel-collector.yaml:z
       - ./.test-output/integration/data:/data:z
       - ./certs:/certs:z
     ports:
