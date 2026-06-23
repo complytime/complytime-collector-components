@@ -8,7 +8,7 @@ tool (
 )
 
 require (
-	github.com/gemaraproj/go-gemara v0.6.0
+	github.com/gemaraproj/go-gemara v0.7.0
 	github.com/maypok86/otter/v2 v2.3.0
 	github.com/oapi-codegen/runtime v1.4.1
 	github.com/stretchr/testify v1.11.1
