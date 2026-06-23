@@ -3,15 +3,25 @@ package integration
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"strings"
 	"time"
+
+	collogspb "go.opentelemetry.io/proto/otlp/collector/logs/v1"
+	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
+	logspb "go.opentelemetry.io/proto/otlp/logs/v1"
+	resourcepb "go.opentelemetry.io/proto/otlp/resource/v1"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 )
 
 // HTTPClient is a shared client with a generous timeout for polling operations.
@@ -213,4 +223,94 @@ func CheckStackRunning(webhookURL, profile string) error {
 		)
 	}
 	return nil
+}
+
+// TokenResponse is the JSON response from a Dex token endpoint.
+type TokenResponse struct {
+	AccessToken string `json:"access_token"`
+	TokenType   string `json:"token_type"`
+	IDToken     string `json:"id_token"`
+}
+
+// MintDexToken performs an OAuth2 password grant against Dex and returns the ID token (JWT).
+// The clientID must match a staticClient configured in Dex with public: true.
+func MintDexToken(dexURL, clientID, username, password string) (string, error) {
+	data := url.Values{
+		"grant_type": {"password"},
+		"client_id":  {clientID},
+		"username":   {username},
+		"password":   {password},
+		"scope":      {"openid email profile"},
+	}
+
+	resp, err := HTTPClient.PostForm(dexURL+"/token", data)
+	if err != nil {
+		return "", fmt.Errorf("requesting token from dex: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("dex token request failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var tokenResp TokenResponse
+	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
+		return "", fmt.Errorf("decoding token response: %w", err)
+	}
+
+	if tokenResp.IDToken == "" {
+		return "", fmt.Errorf("dex returned empty ID token")
+	}
+
+	return tokenResp.IDToken, nil
+}
+
+// PostEvidenceOTLP reads a fixture file and sends it as an OTLP log record via gRPC.
+// If bearerToken is non-empty, it is attached as gRPC metadata (authorization: Bearer <token>).
+// Returns the gRPC error (nil on success).
+func PostEvidenceOTLP(otlpAddr, fixturePath, bearerToken string) error {
+	body, err := os.ReadFile(fixturePath)
+	if err != nil {
+		return fmt.Errorf("reading fixture %s: %w", fixturePath, err)
+	}
+
+	conn, err := grpc.NewClient(otlpAddr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		return fmt.Errorf("connecting to OTLP endpoint %s: %w", otlpAddr, err)
+	}
+	defer conn.Close()
+
+	client := collogspb.NewLogsServiceClient(conn)
+
+	req := &collogspb.ExportLogsServiceRequest{
+		ResourceLogs: []*logspb.ResourceLogs{
+			{
+				Resource: &resourcepb.Resource{},
+				ScopeLogs: []*logspb.ScopeLogs{
+					{
+						LogRecords: []*logspb.LogRecord{
+							{
+								Body: &commonpb.AnyValue{
+									Value: &commonpb.AnyValue_StringValue{
+										StringValue: string(body),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	ctx := context.Background()
+	if bearerToken != "" {
+		ctx = metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+bearerToken)
+	}
+
+	_, err = client.Export(ctx, req)
+	return err
 }

@@ -72,7 +72,12 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("POST /v1/enrich", handleEnrich(fixtures))
+	enrichHandler := handleEnrich(fixtures)
+	if token := os.Getenv("REQUIRE_AUTH_TOKEN"); token != "" {
+		log.Printf("Bearer token auth enabled on /v1/enrich")
+		enrichHandler = requireBearerToken(token, enrichHandler)
+	}
+	mux.HandleFunc("POST /v1/enrich", enrichHandler)
 	mux.HandleFunc("GET /healthz", handleHealth)
 
 	cert, err := tls.LoadX509KeyPair(*certPath, *keyPath)
@@ -148,4 +153,15 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprintf(w, `{"status":"ok"}`)
+}
+
+func requireBearerToken(expectedToken string, next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		auth := r.Header.Get("Authorization")
+		if auth != "Bearer "+expectedToken {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		next(w, r)
+	}
 }

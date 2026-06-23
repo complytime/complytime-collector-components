@@ -21,7 +21,7 @@ This project uses Terraform to manage Grafana dashboards, providing version cont
 ### Directory Structure
 
 ```
-hack/demo/
+deploy/
 ├── terraform/           # Terraform configuration
 │   ├── main.tf         # Dashboard definition (inline HCL)
 │   ├── variables.tf    # Configuration variables
@@ -56,7 +56,7 @@ podman-compose up -d
 # Grafana available at http://localhost:3000 (admin/admin)
 
 # 2. Deploy dashboard
-cd hack/demo/terraform
+cd deploy/terraform
 terraform init
 terraform apply
 
@@ -67,7 +67,7 @@ terraform apply
 ### Production Deployment - Fast Track
 
 ```bash
-cd hack/demo/terraform
+cd deploy/terraform
 
 # Configure credentials
 export TF_VAR_grafana_url="https://grafana.example.com"
@@ -185,7 +185,7 @@ podman-compose up -d
 ### 2. Deploy Dashboard with Terraform
 
 ```bash
-cd hack/demo/terraform
+cd deploy/terraform
 
 # Initialize (first time only)
 terraform init
@@ -205,7 +205,7 @@ The dashboard will be created at <http://localhost:3000/d/compliance-evidence>.
 
 ```bash
 # 1. Edit the dashboard in main.tf
-vim hack/demo/terraform/main.tf
+vim deploy/terraform/main.tf
 
 # 2. Preview changes
 terraform plan
@@ -214,7 +214,7 @@ terraform plan
 terraform apply
 
 # 4. Commit to Git
-git add hack/demo/terraform/main.tf
+git add deploy/terraform/main.tf
 git commit -m "Update dashboard configuration"
 ```
 

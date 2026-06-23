@@ -92,6 +92,8 @@ All commits MUST use Conventional Commits, the `-s` flag (Signed-off-by), and in
 
 ## Integration Test Gotchas
 
+- **Auth profile uses Dex as OIDC provider**: The `auth` profile adds a Dex container (`dexidp/dex:v2.45.1`) and a dedicated `collector-auth` service with `depends_on: dex (service_healthy)` to ensure OIDC discovery succeeds at startup. Dex provides a static test user (`test@complybeacon.dev` / `testpassword`). The collector's OTLP receivers require a valid JWT from Dex. TruthBeam's outbound calls to Compass use `bearertokenauthextension` with a static token. Mock Compass enforces the bearer token via `REQUIRE_AUTH_TOKEN` env var (set automatically by the Taskfile for the auth profile; unset for other profiles so existing tests are unaffected).
+- **Compose profiles are mutually exclusive for collector variants**: Each collector variant (`collector`, `collector-tls`, `collector-auth`) has its own profile to prevent port conflicts. The default `collector` has `profiles: [base, storage, enrichment]`. Dependency services like `rustfs` and `compass` list multiple profiles (e.g., `[storage, auth]`) so `--profile auth` alone pulls in everything needed. The Taskfile handles profile selection — always use `task integration:test PROFILE=<name>`, not raw `podman-compose` commands.
 - **RustFS is not MinIO**: The health endpoint is `/health`, not `/minio/health/live` (returns 403). The S3 API is compatible but administrative endpoints differ. The `rustfs-init` container uses `rc` (RustFS CLI), not `mc` (MinIO client).
 - **Loki 3.x OTLP labels**: Loki no longer auto-creates `{exporter="OTLP"}` from OTLP ingestion. Query indexed labels from `otlp_config.resource_attributes` in `configs/loki.yaml` directly (e.g. `{policy_rule_id="..."}`). Log attributes are stored as structured metadata and can be filtered with `| key="value"` after the stream selector.
 - **Podman rootless volume permissions**: The collector runs as UID 10001. Host-mounted volumes need the `:U` flag (podman ownership remapping) or the container can't write. The `:Z` flag alone only handles SELinux relabeling.
@@ -110,7 +112,7 @@ All commits MUST use Conventional Commits, the `-s` flag (Signed-off-by), and in
 
 - Go 1.26.4, multi-module workspace (`go.work`)
 - OpenTelemetry Collector SDK v1.58.0 / v0.152.0 (stable + experimental series, component framework, pipeline data, processor interfaces)
-- `github.com/gemaraproj/go-gemara` v0.5.0 (compliance evidence model — Gemara v1 schema)
+- `github.com/gemaraproj/go-gemara` v0.6.0 (compliance evidence model — Gemara v1 schema)
 - `github.com/telophasehq/go-ocsf` v0.2.1 (OCSF cybersecurity schema types)
 - `github.com/maypok86/otter/v2` (in-memory cache, truthbeam)
 - `github.com/oapi-codegen` (OpenAPI client generation, truthbeam)

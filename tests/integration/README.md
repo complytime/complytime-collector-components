@@ -60,6 +60,7 @@ Test output is written to `.test-output/integration/`.
 | Storage     | `storage`       | `configs/collector-storage.yaml`     | collector, Loki, RustFS               |
 | Storage TLS | `storage-tls`   | `configs/collector-storage-tls.yaml` | collector-tls, Loki, RustFS (TLS)     |
 | Enrichment  | `enrichment`    | `configs/collector-enrichment.yaml`  | collector, Loki, RustFS, mock Compass |
+| Auth        | `auth`          | `configs/collector-auth.yaml`        | collector-auth, Loki, RustFS, mock Compass, Dex (OIDC) |
 
 ## Test Suites
 
@@ -69,6 +70,7 @@ Test output is written to `.test-output/integration/`.
 | `storage_test.go`     | `storage`     | S3 export, S3 partitioning by policy ID                                              |
 | `storage_tls_test.go` | `storage-tls` | TLS S3 export, TLS S3 partitioning (via `rc` client)                                 |
 | `enrichment_test.go`  | `enrichment`  | Enrichment applied, unknown policy graceful handling                                 |
+| `auth/auth_test.go`   | `auth`        | OIDC reject unauthenticated/invalid/expired/wrong-audience, accept valid token, outbound bearer token enrichment, webhook unauthenticated access |
 
 ## Mock Compass
 
