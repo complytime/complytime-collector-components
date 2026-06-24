@@ -72,22 +72,6 @@ var _ = Describe("Auth Layer", func() {
 		})
 	})
 
-	Describe("Outbound Bearer Token", func() {
-		It("enriches evidence when TruthBeam attaches bearer token to Compass", func() {
-			token, err := integration.MintDexToken(dexURL, "beacon-collector", "test@complybeacon.dev", "testpassword")
-			Expect(err).NotTo(HaveOccurred())
-
-			err = integration.PostEvidenceOTLP(otlpAddr, "../fixtures/evidence-fail.json", token)
-			Expect(err).NotTo(HaveOccurred())
-
-			Eventually(func() ([]string, error) {
-				return integration.QueryLoki(lokiURL,
-					`{policy_rule_id="github_branch_protection"} | compliance_enrichment_status="Success"`,
-				)
-			}, 30*time.Second, 3*time.Second).ShouldNot(BeEmpty())
-		})
-	})
-
 	Describe("Webhook Receiver", func() {
 		It("remains accessible without authentication", func() {
 			resp, err := integration.PostEvidence(webhookURL, "../fixtures/evidence-pass.json")

@@ -123,31 +123,12 @@ services:
       - S3_BUCKETNAME=${S3_BUCKETNAME:-complybeacon-evidence}
     restart: "no"
 
-  compass:
-    image: complybeacon/mock-compass:latest
-    build:
-      context: ./tests/integration/mock-compass
-      dockerfile: Containerfile
-    profiles: [enrichment, auth]
-    volumes:
-      - ./tests/integration/fixtures/compass-responses.json:/fixtures/compass-responses.json:z
-      - ./certs:/certs:z
-    ports:
-      - "${COMPASS_PORT:-8081}:8081"
-    environment:
-      - REQUIRE_AUTH_TOKEN=${REQUIRE_AUTH_TOKEN:-}
-    healthcheck:
-      test: ["CMD", "/mock-compass", "-healthcheck"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-
   collector:
     image: complybeacon/collector:latest
     build:
       context: .
       dockerfile: beacon-distro/Containerfile.collector
-    profiles: [base, storage, enrichment]
+    profiles: [base, storage]
     environment:
       - AWS_REGION=${AWS_REGION:-us-east-1}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-rustfsadmin}
@@ -199,7 +180,14 @@ services:
     ports:
       - "${DEX_PORT:-5556}:5556"
     healthcheck:
-      test: ["CMD", "wget", "--spider", "--quiet", "http://localhost:5556/.well-known/openid-configuration"]
+      test:
+        [
+          "CMD",
+          "wget",
+          "--spider",
+          "--quiet",
+          "http://localhost:5556/.well-known/openid-configuration",
+        ]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -218,7 +206,6 @@ services:
       - S3_OBJ_DIR=${S3_OBJ_DIR:-evidence}
       - S3_ENDPOINT=${S3_ENDPOINT:-http://rustfs:9000}
       - S3_DISABLE_SSL=${S3_DISABLE_SSL:-true}
-      - COMPASS_BEARER_TOKEN=${COMPASS_BEARER_TOKEN:-test-compass-token}
     restart: unless-stopped
     depends_on:
       dex:

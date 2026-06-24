@@ -63,16 +63,15 @@ processors:
         statements:
           - set(observed_time, Now()) where observed_time_unix_nano == 0
           - set(time, observed_time) where time_unix_nano == 0
-          # Extract policy.rule.id from OCSF policy.uid field (procedure ID for Compass mapper lookup)
+          # Extract policy.rule.id from OCSF policy.uid field
           - set(attributes["policy.rule.id"], ParseJSON(body)["policy"]["uid"]) where ParseJSON(body)["policy"]["uid"] != nil
           # Extract control ID from policy.data.sources[0].name as a separate attribute (don't overwrite policy.rule.id)
-          # Note: policy.rule.id must match procedure.id in plan.yml for Compass mapper to work correctly
           - set(attributes["policy.control.id"], ParseJSON(ParseJSON(body)["policy"]["data"])["sources"][0]["name"]) where ParseJSON(body)["policy"]["data"] != nil and ParseJSON(ParseJSON(body)["policy"]["data"])["sources"] != nil and ParseJSON(ParseJSON(body)["policy"]["data"])["sources"][0]["name"] != nil
           # Extract policy.data.config.include (first element of array) as attribute
           - set(attributes["policy.config.include"], ParseJSON(ParseJSON(body)["policy"]["data"])["sources"][0]["config"]["include"][0]) where ParseJSON(body)["policy"]["data"] != nil and ParseJSON(ParseJSON(body)["policy"]["data"])["sources"] != nil and ParseJSON(ParseJSON(body)["policy"]["data"])["sources"][0]["config"] != nil and ParseJSON(ParseJSON(body)["policy"]["data"])["sources"][0]["config"]["include"] != nil and Len(ParseJSON(ParseJSON(body)["policy"]["data"])["sources"][0]["config"]["include"]) > 0
           # Extract policy.engine.name from OCSF metadata.product.name field
           - set(attributes["policy.engine.name"], ParseJSON(body)["metadata"]["product"]["name"]) where ParseJSON(body)["metadata"]["product"]["name"] != nil
-          # Extract policy.evaluation.result from OCSF status field (mapped to Compass enum values)
+          # Extract policy.evaluation.result from OCSF status field
           - set(attributes["policy.evaluation.result"], "Passed") where ParseJSON(body)["status"] == "success"
           - set(attributes["policy.evaluation.result"], "Failed") where ParseJSON(body)["status"] == "failure"
           - set(attributes["policy.evaluation.result"], "Not Run") where ParseJSON(body)["status"] == "not_run"
@@ -123,12 +122,6 @@ connectors:
       # Control evaluations by control category
       - name: compliance.control.by.category
         description: "Count of control evaluations by control category"
-        unit: "1"
-        sum:
-          value: "1"
-      # Control evaluations by enrichment status
-      - name: compliance.control.by.enrichment.status
-        description: "Count of control evaluations by enrichment status"
         unit: "1"
         sum:
           value: "1"

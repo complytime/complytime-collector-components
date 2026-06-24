@@ -20,6 +20,8 @@ jobs:
     steps:
       - name: Check out
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
 
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
@@ -34,10 +36,9 @@ jobs:
 
       - name: Run test
         run: task test
-      - name: Merge coverage files
+      - name: Copy coverage file
         run: |
-          cat proofwatch/coverage.out > coverage.out
-          tail -n +2 truthbeam/coverage.out >> coverage.out
+          cp proofwatch/coverage.out coverage.out
       - name: Upload artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

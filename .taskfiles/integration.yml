@@ -17,10 +17,9 @@ vars:
   WEBHOOK_PORT: '{{.WEBHOOK_PORT | default "18088"}}'
   LOKI_PORT: '{{.LOKI_PORT | default "13100"}}'
   RUSTFS_PORT: '{{.RUSTFS_PORT | default "19000"}}'
-  COMPASS_PORT: '{{.COMPASS_PORT | default "18081"}}'
   DEX_PORT: '{{.DEX_PORT | default "15556"}}'
   OTLP_PORT: '{{.OTLP_PORT | default "14317"}}'
-  VALID_PROFILES: [base, storage, storage-tls, enrichment, auth]
+  VALID_PROFILES: [base, storage, storage-tls, auth]
 
 tasks:
   default:
@@ -30,24 +29,22 @@ tasks:
   ensure-certs:
     desc: Generate self-signed certificates if they do not exist
     status:
-      - test -f {{.CERT_DIR}}/compass.crt
-      - test -f {{.CERT_DIR}}/compass.key
-      - test -f {{.CERT_DIR}}/truthbeam.crt
-      - test -f {{.CERT_DIR}}/truthbeam.key
+      - test -f {{.CERT_DIR}}/ca.crt
+      - test -f {{.CERT_DIR}}/ca.key
       - test -f {{.CERT_DIR}}/rustfs.crt
       - test -f {{.CERT_DIR}}/rustfs.key
     cmds:
       - task: :infra:generate-self-signed-cert
 
   test:
-    desc: "Run integration tests (all layers, or PROFILE=base|storage|enrichment|storage-tls|auth)"
+    desc: "Run integration tests (all layers, or PROFILE=base|storage|storage-tls|auth)"
     vars:
       PROFILES:
         sh: |
           if [ -n "{{.PROFILE}}" ]; then
             echo "{{.PROFILE}}"
           else
-            echo "base storage enrichment"
+            echo "base storage"
           fi
     cmds:
       - task: validate-profile
@@ -88,7 +85,6 @@ tasks:
             base) echo "configs/collector-base.yaml" ;;
             storage) echo "configs/collector-storage.yaml" ;;
             storage-tls) echo "configs/collector-storage-tls.yaml" ;;
-            enrichment) echo "configs/collector-enrichment.yaml" ;;
             auth) echo "configs/collector-auth.yaml" ;;
             *) echo "INVALID_PROFILE" ;;
           esac
@@ -98,7 +94,6 @@ tasks:
             base) echo "--profile base" ;;
             storage) echo "--profile storage" ;;
             storage-tls) echo "--profile storage-tls" ;;
-            enrichment) echo "--profile storage --profile enrichment" ;;
             auth) echo "--profile auth" ;;
             *) echo "" ;;
           esac
@@ -124,11 +119,9 @@ tasks:
       WEBHOOK_PORT: "{{.WEBHOOK_PORT}}"
       LOKI_PORT: "{{.LOKI_PORT}}"
       RUSTFS_PORT: "{{.RUSTFS_PORT}}"
-      COMPASS_PORT: "{{.COMPASS_PORT}}"
       DEX_PORT: "{{.DEX_PORT}}"
       OTLP_PORT: "{{.OTLP_PORT}}"
       COLLECTOR_IMAGE: '{{if eq .USE_GHCR_IMAGE "true"}}{{.GHCR_IMAGE}}:{{.GHCR_TAG}}{{else}}{{end}}'
-      REQUIRE_AUTH_TOKEN: '{{if eq .PROFILE "auth"}}test-compass-token{{else}}{{end}}'
       # Go test env vars (consumed by EnvOrDefault in test suites)
       WEBHOOK_URL: "http://localhost:{{.WEBHOOK_PORT}}"
       LOKI_URL: "http://localhost:{{.LOKI_PORT}}"
@@ -146,7 +139,6 @@ tasks:
                 COMPOSE_FILES: "{{.COMPOSE_FILES}}",
               },
           }
-      - cmd: '{{if or (eq .PROFILE "enrichment") (eq .PROFILE "auth")}}{{.COMPOSE_CMD}} {{.COMPOSE_FILES}} {{.COMPOSE_PROFILES}} build compass{{else}}echo "Skipping compass build (not needed for {{.PROFILE}} profile)"{{end}}'
       # Ensure data directory exists and is writable by the collector (UID 10001).
       # Previously compose.yaml used the podman-only :U flag for UID remapping;
       # creating the directory up-front is portable across Docker and Podman.
@@ -171,7 +163,6 @@ tasks:
             base) echo "configs/collector-base.yaml" ;;
             storage) echo "configs/collector-storage.yaml" ;;
             storage-tls) echo "configs/collector-storage-tls.yaml" ;;
-            enrichment) echo "configs/collector-enrichment.yaml" ;;
             auth) echo "configs/collector-auth.yaml" ;;
             *) echo "INVALID_PROFILE" ;;
           esac
@@ -181,7 +172,6 @@ tasks:
             base) echo "--profile base" ;;
             storage) echo "--profile storage" ;;
             storage-tls) echo "--profile storage-tls" ;;
-            enrichment) echo "--profile storage --profile enrichment" ;;
             auth) echo "--profile auth" ;;
             *) echo "" ;;
           esac
@@ -198,11 +188,9 @@ tasks:
       WEBHOOK_PORT: "{{.WEBHOOK_PORT}}"
       LOKI_PORT: "{{.LOKI_PORT}}"
       RUSTFS_PORT: "{{.RUSTFS_PORT}}"
-      COMPASS_PORT: "{{.COMPASS_PORT}}"
       DEX_PORT: "{{.DEX_PORT}}"
       OTLP_PORT: "{{.OTLP_PORT}}"
       COLLECTOR_IMAGE: '{{if eq .USE_GHCR_IMAGE "true"}}{{.GHCR_IMAGE}}:{{.GHCR_TAG}}{{else}}{{end}}'
-      REQUIRE_AUTH_TOKEN: '{{if eq .PROFILE "auth"}}test-compass-token{{else}}{{end}}'
       OTLP_ADDR: "localhost:{{.OTLP_PORT}}"
       DEX_URL: "http://localhost:{{.DEX_PORT}}"
     cmds:
@@ -279,7 +267,7 @@ tasks:
       # "Names" as an array.  The python helper handles all three formats.
       declare -A CONTAINERS
       while read -r cname; do
-        for svc in collector loki rustfs rustfs-tls compass dex; do
+        for svc in collector loki rustfs rustfs-tls dex; do
           if [[ "$cname" == *"_${svc}_"* || "$cname" == *"-${svc}-"* ]]; then
             CONTAINERS["$svc"]="$cname"
           fi
@@ -306,14 +294,11 @@ tasks:
       echo "Waiting for services to be ready..."
       wait_for_service "Collector webhook" "http://localhost:{{.WEBHOOK_PORT}}/eventreceiver/healthcheck" "" "${CONTAINERS[collector]:-}"
       wait_for_service "Loki" "http://localhost:{{.LOKI_PORT}}/ready" "" "${CONTAINERS[loki]:-}"
-      {{if or (eq .PROFILE "storage") (eq .PROFILE "enrichment") (eq .PROFILE "auth")}}
+      {{if or (eq .PROFILE "storage") (eq .PROFILE "auth")}}
       wait_for_service "RustFS" "http://localhost:{{.RUSTFS_PORT}}/health" "" "${CONTAINERS[rustfs]:-}"
       {{end}}
       {{if eq .PROFILE "storage-tls"}}
       wait_for_service "RustFS TLS" "https://localhost:{{.RUSTFS_PORT}}/health" "-k" "${CONTAINERS[rustfs-tls]:-}"
-      {{end}}
-      {{if or (eq .PROFILE "enrichment") (eq .PROFILE "auth")}}
-      wait_for_service "Mock Compass" "https://localhost:{{.COMPASS_PORT}}/healthz" "-sk" "${CONTAINERS[compass]:-}"
       {{end}}
       {{if eq .PROFILE "auth"}}
       wait_for_service "Dex OIDC" "http://localhost:{{.DEX_PORT}}/.well-known/openid-configuration" "" "${CONTAINERS[dex]:-}"
