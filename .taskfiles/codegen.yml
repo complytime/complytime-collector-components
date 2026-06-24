@@ -1,18 +1,9 @@
-version: '3'
-
-vars:
-  # Task v3 does not inherit root vars in included files; keep in sync with Taskfile.yml.
-  MODULES: '{{.MODULES | default "./proofwatch ./truthbeam"}}'
+version: "3"
 
 tasks:
   default:
     silent: true
     cmd: task codegen --list
-
-  api-codegen:
-    desc: Run go generate for all modules
-    cmds:
-      - bash {{.ROOT_DIR}}/.taskfiles/scripts/go-module-runner.sh api-codegen
 
   weaver-docsgen:
     desc: Generate docs using weaver
@@ -22,7 +13,6 @@ tasks:
     desc: Generate Go code using weaver
     cmds:
       - weaver registry generate -r model --templates templates go --param package_name="proofwatch" proofwatch
-      - weaver registry generate -r model --templates templates go --param package_name="applier" truthbeam/internal/applier
 
   weaver-check:
     desc: Model schema check

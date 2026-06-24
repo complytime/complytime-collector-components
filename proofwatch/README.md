@@ -8,7 +8,7 @@ Proofwatch captures, normalizes, and emits formatted compliance-data logs using 
 
 Proofwatch is an OpenTelemetry instrumentation library that enable applications to log compliance evidence and policy evaluation events using OpenTelemetry's structured logging format.
 
-> **Note:** Proofwatch is commonly used with the [`Beacon`](https://github.com/complytime/complybeacon/blob/ba4106b36dd25b08c15d134650843fb4bffc4e0e/beacon-distro) Collector which leverages [`truthbeam`](https://github.com/complytime/complybeacon/blob/953910cf8a7b1c8c44b8e21630bbb112461d30f0/truthbeam) and [`compass`](https://github.com/complytime/complybeacon/blob/ba4106b36dd25b08c15d134650843fb4bffc4e0e/compass) for processing, enrichment, and export of logs.
+> **Note:** Proofwatch is commonly used with the Beacon Collector for processing and export of compliance evidence logs.
 
 ### Example Code Snippet
 

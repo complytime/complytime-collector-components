@@ -5,8 +5,6 @@
     "**/.git/**",
     ".opencode/**",
     "proofwatch/attributes.go",
-    "truthbeam/internal/applier/attributes.go",
-    "truthbeam/internal/client/client.gen.go",
     "configs/**",
     "beacon-distro/config.yaml"
   ]

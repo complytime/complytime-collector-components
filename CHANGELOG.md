@@ -6,6 +6,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Removed
+
+- **truthbeam**: Removed the TruthBeam OTel Collector enrichment processor. TruthBeam queried the Compass API (powered by `gemara-content-service`) to enrich evidence logs with compliance metadata. With `gemara-content-service` archived, the enrichment pipeline has no upstream data source. The collector distribution continues to process, normalize, and export compliance evidence without enrichment. (#326)
+- **beacon-distro**: Removed the `enrichment` compose profile and Compass mock service from the local development stack. The `base`, `storage`, `storage-tls`, and `auth` profiles remain unchanged.
+
 ## [0.1.1] — 2026-06-17
 
 ### Fixed

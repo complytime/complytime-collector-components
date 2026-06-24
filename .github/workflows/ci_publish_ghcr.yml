@@ -36,6 +36,13 @@ on:
         type: boolean
         required: false
         default: false
+    secrets:
+      QUAY_USERNAME:
+        description: "Quay.io registry username for unstable promotion"
+        required: false
+      QUAY_PASSWORD:
+        description: "Quay.io registry password for unstable promotion"
+        required: false
   schedule:
     - cron: "0 0 */30 * *" # Monthly rebuilds for base image security updates
   workflow_dispatch: # Allow manual triggering
@@ -91,8 +98,8 @@ jobs:
       image_vendor: ComplyTime
       force_rebuild: ${{ inputs.force_rebuild || false }}
       allow_unprotected_ref: true # Allow workflow_dispatch on non-default branches
-    # NOTE: Outputs from the reusable workflow (image, digest, image_ref, tags)
-    # are automatically available to downstream jobs via needs.build-beacon-distro.outputs.*
+      # NOTE: Outputs from the reusable workflow (image, digest, image_ref, tags)
+      # are automatically available to downstream jobs via needs.build-beacon-distro.outputs.*
 
   # ═══════════════════════════════════════════════════════════════════════════
   # QUAY CREDENTIAL CHECK (for unstable promotion)
@@ -210,7 +217,6 @@ jobs:
           WEBHOOK_PORT: "8088"
           LOKI_PORT: "3100"
           RUSTFS_PORT: "9000"
-          COMPASS_PORT: "8081"
           CI: "true"
         run: |
           export GHCR_IMAGE="${GHCR_IMAGE_REF%%:*}"

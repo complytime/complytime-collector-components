@@ -4,7 +4,7 @@
 #
 # Source of truth:
 #   Go version  — go.work `go` directive
-#   OTel version — truthbeam/go.mod (stable v1.x series)
+#   OTel version — proofwatch/go.mod (stable v1.x series) + manifest.yaml (experimental v0.x)
 #
 # Strategy: Track stable (v1.x) versions. Go automatically pulls in
 # the matching experimental (v0.x) versions as needed.
@@ -14,7 +14,7 @@ ROOT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT_DIR"
 
 GO_WORK="go.work"
-TRUTHBEAM_GOMOD="truthbeam/go.mod"
+PROOFWATCH_GOMOD="proofwatch/go.mod"
 MANIFEST="beacon-distro/manifest.yaml"
 
 # Auto-discover go.mod files and Containerfiles with Go base images
@@ -79,28 +79,27 @@ done
 
 echo ""
 
-# ── Extract OTel versions from truthbeam ─────────────────────────
-echo "=== OTel version sync (source: $TRUTHBEAM_GOMOD) ==="
+# ── Extract OTel versions ────────────────────────────────────────
+echo "=== OTel version sync (sources: $PROOFWATCH_GOMOD + $MANIFEST) ==="
 
-# Extract stable (v1.x) from require blocks only (not exclude blocks)
-# This is what we track - the highest version actually used, not excluded
-OTEL_STABLE=$(sed -n '/^require (/,/^)/p' "$TRUTHBEAM_GOMOD" |
+# Stable (v1.x) from proofwatch — the library module tracks the collector pdata series
+OTEL_STABLE=$(sed -n '/^require (/,/^)/p' "$PROOFWATCH_GOMOD" |
 	grep 'go.opentelemetry.io/collector' |
 	grep -oE 'v1\.[0-9]+\.[0-9]+' |
 	sort -V -u | tail -1)
 
-# Extract experimental (v0.x) from require blocks only (not exclude blocks)
-OTEL_EXPERIMENTAL=$(sed -n '/^require (/,/^)/p' "$TRUTHBEAM_GOMOD" |
-	grep 'go.opentelemetry.io/collector' |
+# Experimental (v0.x) from manifest — the distro pins component versions explicitly
+OTEL_EXPERIMENTAL=$(grep -E 'go\.opentelemetry\.io/collector/(exporter|processor|receiver)' "$MANIFEST" |
+	grep -v '^\s*#' |
 	grep -oE 'v0\.[0-9]+\.[0-9]+' |
 	sort -V -u | tail -1)
 
 if [[ -z "$OTEL_STABLE" ]]; then
-	echo "ERROR: Could not extract stable (v1.x) OTel version from $TRUTHBEAM_GOMOD"
+	echo "ERROR: Could not extract stable (v1.x) OTel version from $PROOFWATCH_GOMOD"
 	exit 1
 fi
 if [[ -z "$OTEL_EXPERIMENTAL" ]]; then
-	echo "ERROR: Could not extract experimental (v0.x) OTel version from $TRUTHBEAM_GOMOD"
+	echo "ERROR: Could not extract experimental (v0.x) OTel version from $MANIFEST"
 	exit 1
 fi
 
@@ -120,31 +119,22 @@ done
 
 # ── Sync manifest.yaml component versions ───────────────────────
 # The manifest uses experimental (v0.x) for components and stable (v1.x) for confmap providers.
-# Both series are derived from truthbeam/go.mod.
-# Local modules (truthbeam) use v0.0.0 as a placeholder - the replace directive overrides it.
 if [[ -f "$MANIFEST" ]]; then
 	perl -i -pe "s{(gomod: go\.opentelemetry\.io/collector/\S+)\s+v0\.\d+\.\d+}{\$1 $OTEL_EXPERIMENTAL}g" "$MANIFEST"
 	perl -i -pe "s{(gomod: go\.opentelemetry\.io/collector/\S+)\s+v1\.\d+\.\d+}{\$1 $OTEL_STABLE}g" "$MANIFEST"
 	perl -i -pe "s{(gomod: github\.com/open-telemetry/opentelemetry-collector-contrib/\S+)\s+v0\.\d+\.\d+}{\$1 $OTEL_EXPERIMENTAL}g" "$MANIFEST"
-	echo "  Manifest: $MANIFEST (experimental=$OTEL_EXPERIMENTAL, stable=$OTEL_STABLE, truthbeam at v0.0.0 placeholder)"
+	echo "  Manifest: $MANIFEST (experimental=$OTEL_EXPERIMENTAL, stable=$OTEL_STABLE)"
 fi
 
 # ── Sync Containerfile builder version ───────────────────────────
-# Builder uses the MINIMUM experimental version from truthbeam DIRECT requires.
-# This accounts for contrib release lag - contrib packages are often 1-2 versions
-# behind the main collector packages. We only check direct requires (not indirect)
-# because go mod tidy can pull in newer indirect versions via MVS.
+# Builder uses the experimental version from the manifest components.
 COLLECTOR_CF="beacon-distro/Containerfile.collector"
 if [[ -f "$COLLECTOR_CF" ]]; then
-	# Extract only from the direct require block (before the first "require (" with "// indirect")
-	BUILDER_VERSION=$(sed -n '/^require (/,/^)/p' "$TRUTHBEAM_GOMOD" |
-		grep 'go.opentelemetry.io/collector' |
-		grep -v '// indirect' |
-		grep -oE 'v0\.[0-9]+\.[0-9]+' |
-		sort -V -u | head -1)
+	# Builder version matches the experimental version from manifest
+	BUILDER_VERSION="$OTEL_EXPERIMENTAL"
 	if [[ -n "$BUILDER_VERSION" ]]; then
 		perl -i -pe "s{builder\@v[\d.]+}{builder\@$BUILDER_VERSION}g" "$COLLECTOR_CF"
-		echo "  Builder: $COLLECTOR_CF (using minimum direct experimental version: $BUILDER_VERSION)"
+		echo "  Builder: $COLLECTOR_CF (using manifest experimental version: $BUILDER_VERSION)"
 	fi
 fi
 

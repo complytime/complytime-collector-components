@@ -11,11 +11,6 @@ receivers:
 
 processors:
   batch:
-  truthbeam:
-    endpoint: "https://0.0.0.0:8081"
-    # Disable compression for small enrichment API requests
-    # Compression overhead is unnecessary for ~200 byte payloads
-    compression: ""
   # For logs that are received from or something similar filelog instead of OTLP.
   # These are expected to be in OCSF format before entering the pipeline.
   transform/ocsf:
@@ -31,7 +26,7 @@ processors:
           - set(attributes["policy.rule.id"], ParseJSON(body)["policy"]["uid"]) where ParseJSON(body)["policy"]["uid"] != nil
           # Extract policy.engine.name from OCSF metadata.product.name field
           - set(attributes["policy.engine.name"], ParseJSON(body)["metadata"]["product"]["name"]) where ParseJSON(body)["metadata"]["product"]["name"] != nil
-          # Extract policy.evaluation.result from OCSF status field (mapped to Compass enum values)
+          # Extract policy.evaluation.result from OCSF status field
           - set(attributes["policy.evaluation.result"], "Passed") where ParseJSON(body)["status"] == "success"
           - set(attributes["policy.evaluation.result"], "Failed") where ParseJSON(body)["status"] == "failure"
           - set(attributes["policy.evaluation.result"], "Not Run") where ParseJSON(body)["status"] == "not_run"
@@ -55,8 +50,8 @@ service:
       receivers: [otlp]
       processors: [batch]
       exporters: [debug]
-    # Logs pipeline - enriched logs are exported to both storage and metrics connector
+    # Logs pipeline - transformed logs are exported to both storage and metrics connector
     logs:
       receivers: [otlp]
-      processors: [batch, transform/ocsf, truthbeam]
+      processors: [batch, transform/ocsf]
       exporters: [debug]

@@ -10,9 +10,9 @@
 
 ----
 
-**ComplyBeacon** is an open-source observability toolkit that collects, normalizes, and enriches compliance evidence by extending the OpenTelemetry (OTel) standard.
+**ComplyBeacon** is an open-source observability toolkit that collects, normalizes, and exports compliance evidence by extending the OpenTelemetry (OTel) standard.
 
-It bridges the gap between raw policy scanner output and modern logging pipelines, providing a unified, enriched, and auditable data stream for security and compliance analysis.
+It bridges the gap between raw policy scanner output and modern logging pipelines, providing a unified, normalized, and auditable data stream for security and compliance analysis.
 
 ---
 
@@ -22,7 +22,7 @@ It bridges the gap between raw policy scanner output and modern logging pipeline
 
 ## Architecture
 
-ComplyBeacon is composed of four components that form an evidence enrichment pipeline:
+ComplyBeacon is composed of two components that form an evidence collection and normalization pipeline:
 
 ### 1. ProofWatch
 
@@ -30,15 +30,7 @@ An instrumentation library that accepts raw compliance evidence from policy scan
 
 ### 2. Beacon
 
-A custom OpenTelemetry Collector distribution that hosts the pipeline. It receives log records via OTLP, webhook, or file input, batches and transforms them, then routes them through enrichment and on to exporters.
-
-### 3. TruthBeam
-
-A custom OpenTelemetry Collector processor that enriches log records by calling the Compass service to attach compliance framework mappings, risk scores, and remediation guidance.
-
-### 4. Compass
-
-A policy-to-control lookup service that maps evidence attributes to compliance frameworks, baselines, and risk data. Compass is an external service that must be provided separately for TruthBeam enrichment to function.
+A custom OpenTelemetry Collector distribution that hosts the pipeline. It receives log records via OTLP, webhook, or file input, batches and transforms them into standardized OCSF format, then exports to configured backends (Loki, S3).
 
 ### Data Flow
 
@@ -62,21 +54,13 @@ graph TB
         FLRX["FileLog Receiver"] --> BATCH
 
         BATCH["Batch"] --> XFORM["Transform<br/>OCSF parse"]
-        XFORM --> TBPROC["TruthBeam<br/>Enrich"]
 
-        TBPROC --> S2M["SignalToMetrics"]
-        TBPROC --> DBG["Debug"]
-        TBPROC --> OTLPEX["OTLP/HTTP Exporter"]
-        TBPROC --> S3EX["S3 Exporter"]
+        XFORM --> S2M["SignalToMetrics"]
+        XFORM --> DBG["Debug"]
+        XFORM --> OTLPEX["OTLP/HTTP Exporter"]
+        XFORM --> S3EX["S3 Exporter"]
         S2M --> FILEEX["File Exporter"]
     end
-
-    subgraph compass ["Compass - Enrichment Service"]
-        CAT[("Compliance<br/>Catalogs")] --- LOOKUP["Policy-to-Control<br/>Lookup"]
-    end
-
-    TBPROC -. "enrichment<br/>request" .-> LOOKUP
-    LOOKUP -. "controls, frameworks<br/>risk, remediation" .-> TBPROC
 
     OTLPEX --> LOKI
     S3EX --> S3STORE
@@ -90,21 +74,17 @@ graph TB
     classDef pwNode fill:#8b5cf6,stroke:#6d28d9,color:#fff
     classDef beaconNode fill:#0ea5e9,stroke:#0284c7,color:#fff
     classDef procNode fill:#d97706,stroke:#b45309,color:#fff
-    classDef compassNode fill:#f97316,stroke:#c2410c,color:#fff
     classDef outputNode fill:#64748b,stroke:#334155,color:#fff
     classDef catNode fill:#fbbf24,stroke:#b45309,color:#333
 
     class OPA,GK,CF,SEN sourceNode
     class NORM,EMIT pwNode
-    class OTLPRX,WHRX,FLRX,BATCH,XFORM,TBPROC,S2M beaconNode
+    class OTLPRX,WHRX,FLRX,BATCH,XFORM,S2M beaconNode
     class DBG,OTLPEX,S3EX,FILEEX procNode
-    class LOOKUP compassNode
-    class CAT catNode
     class LOKI,S3STORE,GRAF,HP outputNode
 
     style pw fill:#f5f3ff,stroke:#8b5cf6,stroke-width:2px
     style beacon fill:#f0f9ff,stroke:#0ea5e9,stroke-width:2px
-    style compass fill:#fff7ed,stroke:#f97316,stroke-width:2px
     style outputs fill:#f1f5f9,stroke:#64748b,stroke-width:2px
 ```
 
@@ -180,12 +160,11 @@ Production deployments should use a dedicated collector configuration with `disa
 
 ### 4. Authentication
 
-Beacon bundles two OTel Collector auth extensions but does **not** enable them by default — the shipped configs prioritize development simplicity.
+Beacon bundles an OTel Collector auth extension (`oidcauthextension`) but does **not** enable it by default — the shipped configs prioritize development simplicity. A `bearertokenauthextension` is also available in the extension registry for outbound authentication.
 
-| Extension | Direction | Purpose |
-|-----------|-----------|---------|
-| `oidcauthextension` | Inbound | Validates OIDC (JWT) tokens on incoming OTLP requests |
-| `bearertokenauthextension` | Outbound | Attaches a static bearer token to outgoing HTTP requests |
+| Extension           | Direction | Purpose                                               |
+|---------------------|-----------|-------------------------------------------------------|
+| `oidcauthextension` | Inbound   | Validates OIDC (JWT) tokens on incoming OTLP requests |
 
 #### Configuring OIDC on OTLP Receivers
 
@@ -223,27 +202,6 @@ The extension discovers the provider's signing keys via the standard `/.well-kno
 
 > **Note:** The webhook receiver does not support OTel auth extensions. Only OTLP gRPC and HTTP receivers can be protected with OIDC.
 
-#### Configuring Bearer Token on Outbound Calls
-
-To attach a static bearer token to outbound HTTP requests (e.g., TruthBeam calling Compass):
-
-```yaml
-extensions:
-  bearertokenauth:
-    token: ${COMPASS_BEARER_TOKEN}
-
-processors:
-  truthbeam:
-    endpoint: "https://compass:8081"
-    auth:
-      authenticator: bearertokenauth
-
-service:
-  extensions: [bearertokenauth]
-```
-
-The extension adds `Authorization: Bearer <token>` to every request made by the processor's HTTP client.
-
 ## Development
 
 ### Task Commands
@@ -264,7 +222,6 @@ task clean                 # Remove build artifacts and test output
 ### Code Generation
 
 ```bash
-task codegen:api-codegen               # Regenerate OpenAPI client (truthbeam)
 task codegen:weaver-codegen            # Regenerate attribute constants from model/
 task codegen:weaver-docsgen            # Regenerate attribute docs from model/
 task codegen:weaver-check              # Validate semantic convention model
@@ -277,7 +234,7 @@ The project prevents version drift between the Go modules and the beacon-distro 
 
 ```bash
 task version:check-otel-versions       # Check alignment
-task version:sync-otel-versions        # Sync beacon-distro with truthbeam
+task version:sync-otel-versions        # Sync beacon-distro with proofwatch
 task version:check-go-version          # Verify Go version compatibility
 task version:check-go-mod-consistency  # Check OTel dependency consistency
 ```
@@ -297,7 +254,7 @@ task build IMAGE=ghcr.io/complytime/complybeacon TAG=v1.0.0
 
 # Run standalone (without compose)
 podman run --rm \
-  -v ./configs/collector-enrichment.yaml:/etc/otel-collector.yaml:Z \
+  -v ./configs/collector-base.yaml:/etc/otel-collector.yaml:Z \
   -p 4317:4317 -p 8088:8088 \
   complybeacon/collector:latest \
   --config=/etc/otel-collector.yaml

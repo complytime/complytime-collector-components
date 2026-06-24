@@ -17,9 +17,6 @@ const COMPLIANCE_CONTROL_CATEGORY = "compliance.control.category"
 // Unique identifier for the security control and assessment requirement being assessed
 const COMPLIANCE_CONTROL_ID = "compliance.control.id"
 
-// Result of the compliance framework mapping and enrichment process, indicating whether compliance context was successfully added to the event
-const COMPLIANCE_ENRICHMENT_STATUS = "compliance.enrichment.status"
-
 // Regulatory or industry standards being evaluated for compliance
 const COMPLIANCE_FRAMEWORKS = "compliance.frameworks"
 

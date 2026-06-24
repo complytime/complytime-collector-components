@@ -206,7 +206,7 @@ When changes are merged to `main`, the workflow:
 
 When an **org member** opens or updates a PR that touches:
 - Any `Containerfile*`
-- Source code in `beacon-distro/`, `proofwatch/`, `truthbeam/`
+- Source code in `beacon-distro/`, `proofwatch/`
 - The workflow file itself
 
 The workflow:
