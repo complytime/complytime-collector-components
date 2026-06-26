@@ -1,0 +1,126 @@
+# Nightly UBI Base Image Update
+# ==============================
+# Checks for a newer ubi10/ubi-minimal digest from the Red Hat registry.
+# When a new digest is found, updates the pinned SHA in both Containerfiles
+# and creates (or updates) a PR for human review and merge.
+
+name: Update UBI Base Image
+
+on:
+  schedule:
+    - cron: "23 3 * * *" # Nightly at 03:23 UTC (off-peak)
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  update-ubi-digest:
+    name: Check and Update UBI Base Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: true
+
+      - name: Install skopeo
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq skopeo
+
+      - name: Check for UBI digest update
+        id: check
+        run: |
+          CURRENT=$(grep -oP 'ubi10/ubi-minimal@sha256:\K[a-f0-9]+' beacon-distro/Containerfile.collector | head -1)
+
+          if [ -z "$CURRENT" ]; then
+            echo "::error::Could not extract current UBI digest from Containerfile"
+            exit 1
+          fi
+
+          if ! INSPECT_OUTPUT=$(skopeo inspect --no-creds \
+            docker://registry.access.redhat.com/ubi10/ubi-minimal:latest 2>&1); then
+            echo "::error::Failed to inspect UBI image: ${INSPECT_OUTPUT}"
+            exit 1
+          fi
+
+          LATEST=$(echo "${INSPECT_OUTPUT}" | jq -r '.Digest')
+          LATEST="${LATEST#sha256:}"
+
+          if [ -z "$LATEST" ]; then
+            echo "::error::Failed to extract latest UBI digest from registry"
+            exit 1
+          fi
+
+          echo "current=${CURRENT}" >> "$GITHUB_OUTPUT"
+          echo "latest=${LATEST}" >> "$GITHUB_OUTPUT"
+
+          if [ "$CURRENT" = "$LATEST" ]; then
+            echo "UBI base image is up to date (sha256:${CURRENT:0:12}...)"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "UBI base image update available:"
+            echo "  Current: sha256:${CURRENT}"
+            echo "  Latest:  sha256:${LATEST}"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Update Containerfiles
+        if: steps.check.outputs.changed == 'true'
+        env:
+          OLD_DIGEST: ${{ steps.check.outputs.current }}
+          NEW_DIGEST: ${{ steps.check.outputs.latest }}
+        run: |
+          sed -i "s|ubi-minimal@sha256:${OLD_DIGEST}|ubi-minimal@sha256:${NEW_DIGEST}|g" \
+            beacon-distro/Containerfile.collector \
+            tests/integration/mock-compass/Containerfile
+
+          echo "Updated files:"
+          git diff --stat
+
+      - name: Create or update PR
+        if: steps.check.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEW_DIGEST: ${{ steps.check.outputs.latest }}
+        run: |
+          BRANCH="chore/update-ubi-base-image"
+          SHORT_DIGEST="${NEW_DIGEST:0:12}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git checkout -B "${BRANCH}"
+          git add beacon-distro/Containerfile.collector tests/integration/mock-compass/Containerfile
+          git commit -s -m "chore(deps): update UBI 10 minimal base image digest
+
+          Update ubi10/ubi-minimal pinned digest to sha256:${NEW_DIGEST}.
+
+          Automated update from nightly base image check."
+
+          git push origin "${BRANCH}" --force
+
+          EXISTING_PR=$(gh pr list --head "${BRANCH}" --state open --json number --jq '.[0].number // empty')
+
+          if [ -n "${EXISTING_PR}" ]; then
+            echo "Updated existing PR #${EXISTING_PR}"
+          else
+            {
+              echo "## Summary"
+              echo ""
+              echo "- Update \`ubi10/ubi-minimal\` pinned digest to \`sha256:${NEW_DIGEST}\`"
+              echo "- Applies to \`beacon-distro/Containerfile.collector\` and \`tests/integration/mock-compass/Containerfile\`"
+              echo ""
+              echo "Automated nightly update from \`ci_update_ubi.yml\`. Run CI and merge when ready."
+            } > /tmp/pr-body.md
+
+            gh pr create \
+              --title "chore(deps): update UBI 10 minimal base image (${SHORT_DIGEST}...)" \
+              --body-file /tmp/pr-body.md \
+              --label "dependencies"
+
+            echo "PR created for review"
+          fi
