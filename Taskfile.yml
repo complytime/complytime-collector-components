@@ -28,7 +28,7 @@ includes:
 vars:
   APP_NAME: '{{.APP_NAME | default "complybeacon"}}'
   TEST_DIR: '{{.TEST_DIR | default ".test-output"}}'
-  MODULES: "./proofwatch ./truthbeam"
+  MODULES: "./proofwatch"
   BIN_DIR: '{{.BIN_DIR | default "bin"}}'
   CERT_DIR: '{{.CERT_DIR | default "certs"}}'
 
@@ -96,6 +96,6 @@ tasks:
       - GOFLAGS= go clean -modcache
 
   test:integration:
-    desc: "Run integration tests (all layers, or PROFILE=base|storage|enrichment)"
+    desc: "Run integration tests (all layers, or PROFILE=base|storage)"
     cmds:
       - task: integration:test

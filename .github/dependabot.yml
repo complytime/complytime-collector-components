@@ -22,7 +22,6 @@ updates:
   - package-ecosystem: gomod
     directories:
       - /proofwatch
-      - /truthbeam
     schedule:
       interval: weekly
     open-pull-requests-limit: 10

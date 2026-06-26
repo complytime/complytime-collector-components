@@ -107,10 +107,8 @@ func createLogFromAttributes(attrs []attribute.KeyValue, body []byte) plog.Logs 
 	return logs
 }
 
-// simulateTruthBeamEnrichment simulates TruthBeam enrichment by adding compliance attributes
-// This mimics what TruthBeam does after calling the Compass API
-// It adds comprehensive test data covering various enum values
-func simulateTruthBeamEnrichment(logs plog.Logs) plog.Logs {
+// addComplianceAttributes adds compliance attributes to logs for semantic validation
+func addComplianceAttributes(logs plog.Logs) plog.Logs {
 	rl := logs.ResourceLogs()
 	logRecordIndex := 0
 	for i := 0; i < rl.Len(); i++ {
@@ -121,9 +119,6 @@ func simulateTruthBeamEnrichment(logs plog.Logs) plog.Logs {
 			logRecords := ils.LogRecords()
 			for k := 0; k < logRecords.Len(); k++ {
 				lr := logRecords.At(k)
-
-				// Simulate TruthBeam enrichment - add compliance attributes
-				// These would normally come from the Compass API via ApplyAttributes
 
 				// Use different enum values based on log record index to test various scenarios
 				switch logRecordIndex % 3 {
@@ -151,7 +146,6 @@ func simulateTruthBeamEnrichment(logs plog.Logs) plog.Logs {
 				lr.Attributes().PutStr(proofwatch.COMPLIANCE_CONTROL_ID, "OSPS-QA-07.01")
 				lr.Attributes().PutStr(proofwatch.COMPLIANCE_CONTROL_CATALOG_ID, "OSPS-B")
 				lr.Attributes().PutStr(proofwatch.COMPLIANCE_CONTROL_CATEGORY, "Access Control")
-				lr.Attributes().PutStr(proofwatch.COMPLIANCE_ENRICHMENT_STATUS, "Success")
 				lr.Attributes().PutStr(proofwatch.COMPLIANCE_ASSESSMENT_ID, fmt.Sprintf("test-assessment-%03d", logRecordIndex))
 
 				// Add arrays for frameworks and requirements
@@ -270,13 +264,13 @@ func main() {
 
 	if format == "gemara" || format == "both" {
 		gemaraLogs := generateGemaraLog()
-		enrichedGemara := simulateTruthBeamEnrichment(gemaraLogs)
+		enrichedGemara := addComplianceAttributes(gemaraLogs)
 		allLogs = append(allLogs, enrichedGemara)
 	}
 
 	if format == "ocsf" || format == "both" {
 		ocsfLogs := generateOCSFLog()
-		enrichedOCSF := simulateTruthBeamEnrichment(ocsfLogs)
+		enrichedOCSF := addComplianceAttributes(ocsfLogs)
 		allLogs = append(allLogs, enrichedOCSF)
 	}
 

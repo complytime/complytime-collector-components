@@ -32,7 +32,8 @@ groups:
         stability: development
         brief: >
           Human-readable name of the policy rule.
-        examples: ["Deny Root User", "Require Encryption", "Check Resource Labels"]
+        examples:
+          ["Deny Root User", "Require Encryption", "Check Resource Labels"]
         requirement_level: opt_in
       - id: policy.rule.uri
         type: string
@@ -40,7 +41,10 @@ groups:
         brief: >
           Source control URL and version of the policy-as-code file for auditability.
         examples:
-          ["github.com/org/policy-repo/b8a7c2e", "gitlab.com/company/policies@v1.2.3"]
+          [
+            "github.com/org/policy-repo/b8a7c2e",
+            "gitlab.com/company/policies@v1.2.3",
+          ]
         requirement_level: recommended
       - id: policy.evaluation.result
         type:
@@ -123,31 +127,33 @@ groups:
         brief: >
           Unique identifier for the security control and assessment requirement
           being assessed.
-        examples:
-          ["OSPS-QA-07.01"]
+        examples: ["OSPS-QA-07.01"]
         requirement_level: required
       - id: compliance.control.category
         type: string
         stability: development
         brief: >
           Category or family that the security control belongs to.
-        examples:
-          ["Access Control", "Quality"]
+        examples: ["Access Control", "Quality"]
         requirement_level: recommended
       - id: compliance.control.catalog.id
         type: string
         stability: development
         brief: >
           Unique identifier for the security control catalog or framework.
-        examples:
-          ["OSPS-B", "CCC", "CIS"]
+        examples: ["OSPS-B", "CCC", "CIS"]
         requirement_level: required
       - id: compliance.control.applicability
         type: string[]
         stability: development
         brief: >
           Environments or contexts where this control applies.
-        examples: [["Production", "Staging"], ["All Environments"], ["Kubernetes", "AWS"]]
+        examples:
+          [
+            ["Production", "Staging"],
+            ["All Environments"],
+            ["Kubernetes", "AWS"],
+          ]
         requirement_level: opt_in
       - id: compliance.frameworks
         type: string[]
@@ -301,32 +307,6 @@ groups:
         brief: >
           Unique identifier for the compliance assessment run or session.
           Used to group findings from the same assessment execution.
-        examples: ["assessment-2024-001", "scan-run-abc123", "compliance-check-xyz789"]
+        examples:
+          ["assessment-2024-001", "scan-run-abc123", "compliance-check-xyz789"]
         requirement_level: recommended
-      - id: compliance.enrichment.status
-        type:
-          members:
-            - id: "Success"
-              value: "Success"
-              brief: Enrichment was successful
-              stability: development
-            - id: "Unmapped"
-              value: "Unmapped"
-              brief: Enrichment could not be mapped
-              stability: development
-            - id: "Partial"
-              value: "Partial"
-              brief: Partial enrichment completed
-              stability: development
-            - id: "Unknown"
-              value: "Unknown"
-              brief: Enrichment status is unknown
-              stability: development
-            - id: "Skipped"
-              value: "Skipped"
-              brief: Enrichment was skipped
-              stability: development
-        stability: development
-        brief: >
-          Result of the compliance framework mapping and enrichment process, indicating whether compliance context was successfully added to the event.
-        requirement_level: required

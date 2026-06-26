@@ -12,7 +12,6 @@ on:
       - "**/go.mod"
       - "beacon-distro/manifest.yaml"
       - "beacon-distro/Containerfile.collector"
-      - "tests/integration/mock-compass/Containerfile"
   push:
     branches: [main]
     paths:
@@ -29,6 +28,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
 
       - name: Install Task
         uses: go-task/setup-task@01a4adf9db2d14c1de7a560f09170b6e0df736aa # v2.1.0

@@ -4,8 +4,6 @@ extensions:
       - issuer_url: http://dex:5556
         audience: beacon-collector
         username_claim: email
-  bearertokenauth:
-    token: ${COMPASS_BEARER_TOKEN:-test-compass-token}
 
 receivers:
   webhookevent:
@@ -45,13 +43,6 @@ processors:
   batch/metrics:
     timeout: 1s
     send_batch_size: 10
-  truthbeam:
-    endpoint: "https://compass:8081"
-    compression: ""
-    tls:
-      ca_file: /certs/truthbeam.crt
-    auth:
-      authenticator: bearertokenauth
 
   transform/metrics_to_logs:
     error_mode: ignore
@@ -124,11 +115,6 @@ connectors:
         unit: "1"
         sum:
           value: "1"
-      - name: compliance.control.by.enrichment.status
-        description: "Count of control evaluations by enrichment status"
-        unit: "1"
-        sum:
-          value: "1"
       - name: compliance.control.by.severity
         description: "Count of control evaluations by severity level"
         unit: "1"
@@ -160,7 +146,7 @@ exporters:
       s3_prefix: "policy.rule.id"
 
 service:
-  extensions: [oidc, bearertokenauth]
+  extensions: [oidc]
   pipelines:
     traces:
       receivers: [otlp]
@@ -180,5 +166,5 @@ service:
       exporters: [debug]
     logs/analysis_pipeline:
       receivers: [webhookevent, otlp]
-      processors: [batch, transform/ocsf, truthbeam]
+      processors: [batch, transform/ocsf]
       exporters: [debug, otlphttp/logs, awss3/logs, signaltometrics]
