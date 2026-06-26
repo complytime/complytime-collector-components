@@ -41,8 +41,8 @@ github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f h1:Y/CXytFA4m6
 github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f/go.mod h1:vw97MGsxSvLiUE2X8qFplwetxpGLQrlU1Q9AUEIzCaM=
 github.com/fzipp/gocyclo v0.6.0 h1:lsblElZG7d3ALtGMx9fmxeTKZaLLpU8mET09yN4BBLo=
 github.com/fzipp/gocyclo v0.6.0/go.mod h1:rXPyn8fnlpa0R2csP/31uerbiVBugk5whMdlyaLkLoA=
-github.com/gemaraproj/go-gemara v0.6.0 h1:UvmPgRTK4U6C9Z/PhAvVIbjlnvU1IRTSneE/t4PWPks=
-github.com/gemaraproj/go-gemara v0.6.0/go.mod h1:knXQmQ4f7vB18eb6TcUCP2A3dqQpn+oZdyz74Qe1+ac=
+github.com/gemaraproj/go-gemara v0.7.0 h1:cDIuKD03DF1bhrG3dmBoiJoF3h2mSMJ3YtDRr4LjvXE=
+github.com/gemaraproj/go-gemara v0.7.0/go.mod h1:h5Yepw+9Gww3x97Yk4X0pVnnci9S/W2Yo/66rp4WN54=
 github.com/go-logfmt/logfmt v0.6.1 h1:4hvbpePJKnIzH1B+8OR/JPbTx37NktoI9LE2QZBBkvE=
 github.com/go-logfmt/logfmt v0.6.1/go.mod h1:EV2pOAQoZaT1ZXZbqDl5hrymndi4SY9ED9/z6CO0XAk=
 github.com/go-logr/logr v1.2.2/go.mod h1:jdQByPbusPIv2/zmleS9BjJVeZ6kBagPoEUsqbVz/1A=
