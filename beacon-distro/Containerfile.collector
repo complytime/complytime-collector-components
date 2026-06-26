@@ -18,7 +18,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build builder --config manifest.ya
 
 # Stage 2: Runtime image
 # Using UBI10 Minimal (provides microdnf for OS-level security patching)
-FROM registry.access.redhat.com/ubi10/ubi-minimal@sha256:2c20ac20ca1ecbbbd583603feabd9cc51e7e8ea5a82e5088e20a9494794b2574
+FROM registry.access.redhat.com/ubi10/ubi-minimal@sha256:5bc43c1af14ccc8bf73bb0306db13edcae1a30589569e9cdf7db5d4668b3ed24
 
 # Apply latest OS security patches and clean up package cache
 RUN microdnf update -y && microdnf clean all
