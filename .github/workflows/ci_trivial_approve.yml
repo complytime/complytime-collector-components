@@ -1,0 +1,81 @@
+# Trivial Change Review Gate
+# ==========================
+# Auto-approves PRs when the `trivial_change` label is applied.
+# Dismisses the approval when the label is removed.
+#
+# Prerequisites:
+#   - GitHub App installed on this repo with `pull_requests: write`
+#   - Repository secrets: TRIVIAL_APPROVE_CLIENT_ID, TRIVIAL_APPROVE_APP_PRIVATE_KEY
+#   - Label `trivial_change` created in the repository
+
+name: Trivial Change Review Gate
+
+on:
+  pull_request_target:
+    types: [labeled, unlabeled]
+
+permissions:
+  contents: none
+  pull-requests: none
+
+concurrency:
+  group: trivial-approve-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  auto-approve:
+    runs-on: ubuntu-latest
+    if: >-
+      github.event.action == 'labeled'
+      && github.event.label.name == 'trivial_change'
+    steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.TRIVIAL_APPROVE_CLIENT_ID }}
+          private-key: ${{ secrets.TRIVIAL_APPROVE_APP_PRIVATE_KEY }}
+
+      - name: Approve PR
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          ACTOR: ${{ github.event.sender.login }}
+        run: |
+          gh pr review "$PR_NUMBER" \
+            --repo "${{ github.repository }}" \
+            --approve \
+            --body "Auto-approved: trivial_change label applied by @$ACTOR"
+
+  dismiss-approval:
+    runs-on: ubuntu-latest
+    if: >-
+      github.event.action == 'unlabeled'
+      && github.event.label.name == 'trivial_change'
+    steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.TRIVIAL_APPROVE_CLIENT_ID }}
+          private-key: ${{ secrets.TRIVIAL_APPROVE_APP_PRIVATE_KEY }}
+
+      - name: Dismiss bot approvals
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          ACTOR: ${{ github.event.sender.login }}
+          BOT_LOGIN: ${{ steps.app-token.outputs.app-slug }}[bot]
+        run: |
+          review_ids=$(gh api \
+            "repos/${{ github.repository }}/pulls/${PR_NUMBER}/reviews" \
+            --jq "[.[] | select(.user.login == \"${BOT_LOGIN}\" and .state == \"APPROVED\") | .id]")
+
+          for review_id in $(echo "$review_ids" | jq -r '.[]'); do
+            echo "Dismissing review ${review_id}"
+            gh api \
+              --method PUT \
+              "repos/${{ github.repository }}/pulls/${PR_NUMBER}/reviews/${review_id}/dismissals" \
+              -f message="trivial_change label removed by @${ACTOR}"
+          done
+
