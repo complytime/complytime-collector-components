@@ -10,7 +10,7 @@ cd "$ROOT_DIR"
 FAILED=0
 
 GO_WORK="go.work"
-TRUTHBEAM_GOMOD="truthbeam/go.mod"
+PROOFWATCH_GOMOD="proofwatch/go.mod"
 MANIFEST="beacon-distro/manifest.yaml"
 
 # Auto-discover go.mod files and Containerfiles with Go base images
@@ -87,20 +87,19 @@ echo ""
 # ── OTel version consistency ────────────────────────────────────
 echo "=== OTel version check ==="
 
-# Extract from require blocks only (not exclude blocks) to get actual versions used
-OTEL_EXPERIMENTAL=$(sed -n '/^require (/,/^)/p' "$TRUTHBEAM_GOMOD" |
-	grep -E 'go\.opentelemetry\.io/collector/[^/]+' |
-	grep -v 'go.opentelemetry.io/contrib' |
-	grep -oE 'v0\.[0-9]+\.[0-9]+' |
-	sort -V -u | tail -1)
-
-OTEL_STABLE=$(sed -n '/^require (/,/^)/p' "$TRUTHBEAM_GOMOD" |
-	grep -E 'go\.opentelemetry\.io/collector/[^/]+' |
-	grep -v 'go.opentelemetry.io/contrib' |
+# Stable (v1.x) from proofwatch — the library module tracks the collector pdata series
+OTEL_STABLE=$(sed -n '/^require (/,/^)/p' "$PROOFWATCH_GOMOD" |
+	grep 'go.opentelemetry.io/collector' |
 	grep -oE 'v1\.[0-9]+\.[0-9]+' |
 	sort -V -u | tail -1)
 
-echo "  Source of truth ($TRUTHBEAM_GOMOD): experimental=$OTEL_EXPERIMENTAL stable=$OTEL_STABLE"
+# Experimental (v0.x) from manifest — the distro pins component versions explicitly
+OTEL_EXPERIMENTAL=$(grep -E 'go\.opentelemetry\.io/collector/(exporter|processor|receiver)' "$MANIFEST" |
+	grep -v '^\s*#' |
+	grep -oE 'v0\.[0-9]+\.[0-9]+' |
+	sort -V -u | tail -1)
+
+echo "  Source of truth ($PROOFWATCH_GOMOD + $MANIFEST): experimental=$OTEL_EXPERIMENTAL stable=$OTEL_STABLE"
 
 for MODULE in "${WORKSPACE_MODULES[@]}"; do
 	GOMOD="$MODULE/go.mod"
@@ -146,7 +145,7 @@ done
 # ── Manifest version check ──────────────────────────────────────
 # The manifest uses experimental (v0.x) for components/contrib and stable (v1.x) for
 # confmap providers (which migrated to the stable series upstream).
-# Local modules (truthbeam) use v0.0.0 placeholders and are excluded from this check.
+# Local module placeholders (v0.0.0) are excluded from this check.
 
 MANIFEST_FAIL=0
 
@@ -200,20 +199,12 @@ fi
 COLLECTOR_CF="beacon-distro/Containerfile.collector"
 if [[ -f "$COLLECTOR_CF" ]]; then
 	BUILDER_VERSION=$(grep 'go.opentelemetry.io/collector/cmd/builder@' "$COLLECTOR_CF" | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' || true)
-	# Builder should use the MINIMUM experimental version from truthbeam DIRECT requires.
-	# This accounts for contrib release lag - contrib packages are often 1-2 versions behind.
-	# We only check direct requires (not indirect) because go mod tidy can pull in newer
-	# indirect versions via MVS.
-	OTEL_MIN_EXPERIMENTAL=$(sed -n '/^require (/,/^)/p' "$TRUTHBEAM_GOMOD" |
-		grep 'go.opentelemetry.io/collector' |
-		grep -v '// indirect' |
-		grep -oE 'v0\.[0-9]+\.[0-9]+' |
-		sort -V -u | head -1)
-	if [[ -n "$BUILDER_VERSION" && "$BUILDER_VERSION" != "$OTEL_MIN_EXPERIMENTAL" ]]; then
-		echo "  FAIL: Builder at $BUILDER_VERSION (expected minimum direct experimental: $OTEL_MIN_EXPERIMENTAL)"
+	# Builder should use the experimental version from manifest components.
+	if [[ -n "$BUILDER_VERSION" && "$BUILDER_VERSION" != "$OTEL_EXPERIMENTAL" ]]; then
+		echo "  FAIL: Builder at $BUILDER_VERSION (expected experimental version: $OTEL_EXPERIMENTAL)"
 		FAILED=1
 	elif [[ -n "$BUILDER_VERSION" ]]; then
-		echo "  OK: Builder at $BUILDER_VERSION (minimum direct experimental version)"
+		echo "  OK: Builder at $BUILDER_VERSION (experimental version)"
 	fi
 fi
 

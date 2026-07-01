@@ -1,4 +1,0 @@
-# Invalid configuration for testing validation
-client_config:
-  # Missing required endpoint
-  timeout: 30s

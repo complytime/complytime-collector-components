@@ -2,7 +2,7 @@ version: "3"
 
 vars:
   # Task v3 does not inherit root vars in included files; keep in sync with Taskfile.yml.
-  MODULES: '{{.MODULES | default "./proofwatch ./truthbeam"}}'
+  MODULES: '{{.MODULES | default "./proofwatch"}}'
   TEST_DIR: '{{.TEST_DIR | default (printf "%s/.test-output" .ROOT_DIR)}}'
 
 tasks:

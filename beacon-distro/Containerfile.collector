@@ -11,10 +11,9 @@ WORKDIR /build
 # Split into two RUN commands for better layer caching
 RUN --mount=type=cache,target=/root/.cache/go-build GO111MODULE=on go install go.opentelemetry.io/collector/cmd/builder@v0.155.0
 
-# Copy the manifest and truthbeam source (needed for replace directive)
+# Copy the manifest for the collector builder
 # Build context is the repo root, so paths are relative to workspace root
 COPY beacon-distro/manifest.yaml manifest.yaml
-COPY truthbeam/ truthbeam/
 RUN --mount=type=cache,target=/root/.cache/go-build builder --config manifest.yaml
 
 # Stage 2: Runtime image

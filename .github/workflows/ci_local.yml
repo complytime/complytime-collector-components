@@ -43,7 +43,7 @@ jobs:
         run: task workspace
       - id: set-modules
         run: |
-          echo "modules=$(go work edit -json go.work | jq -c '[.Use[].DiskPath | select(. == "./proofwatch" or . == "./truthbeam")]')" >> "${GITHUB_OUTPUT}"
+          echo "modules=$(go work edit -json go.work | jq -c '[.Use[].DiskPath | select(. == "./proofwatch")]')" >> "${GITHUB_OUTPUT}"
 
   detect-layers:
     name: Detect Integration Layers
@@ -53,7 +53,6 @@ jobs:
       pull-requests: read
     outputs:
       run_storage: ${{ steps.filter.outputs.storage }}
-      run_enrichment: ${{ steps.filter.outputs.enrichment }}
       layers: ${{ steps.build-matrix.outputs.layers }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -67,12 +66,7 @@ jobs:
             storage:
               - 'configs/collector-storage*.yaml'
               - 'tests/integration/storage/**'
-            enrichment:
-              - 'configs/collector-enrichment.yaml'
-              - 'tests/integration/enrichment/**'
-              - 'tests/integration/mock-compass/**'
             all:
-              - 'truthbeam/**'
               - 'beacon-distro/**'
               - 'compose.yaml'
               - 'compose.ghcr.yaml'
@@ -88,12 +82,11 @@ jobs:
         env:
           ALL: ${{ steps.filter.outputs.all }}
           STORAGE: ${{ steps.filter.outputs.storage }}
-          ENRICHMENT: ${{ steps.filter.outputs.enrichment }}
           EVENT: ${{ github.event_name }}
         run: |
           # Always run all layers on push to main (gates GHCR publish)
           if [ "$EVENT" = "push" ]; then
-            echo 'layers=["base","storage","enrichment"]' >> "$GITHUB_OUTPUT"
+            echo 'layers=["base","storage"]' >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -103,11 +96,6 @@ jobs:
           # Add storage if storage-specific or shared code changed
           if [ "$ALL" = "true" ] || [ "$STORAGE" = "true" ]; then
             LAYERS="${LAYERS},\"storage\""
-          fi
-
-          # Add enrichment if enrichment-specific or shared code changed
-          if [ "$ALL" = "true" ] || [ "$ENRICHMENT" = "true" ]; then
-            LAYERS="${LAYERS},\"enrichment\""
           fi
 
           LAYERS="${LAYERS}]"
@@ -213,30 +201,23 @@ jobs:
       - name: Install weaver
         run: task tools:install-weaver
 
-      - name: Install oapi-codegen
-        run: go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.5.0
-
-      - name: Add Go bin to PATH
-        run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
-
       - name: Setup workspace
         run: task workspace
 
       - name: Install dependencies
         run: |
-          for m in "./proofwatch" "./truthbeam"; do
+          for m in "./proofwatch"; do
             (cd "${m}" && go mod download)
           done
 
       - name: Run code generation
         run: |
-          task codegen:api-codegen
           task codegen:weaver-codegen
 
       - name: Check for diffs
         run: |
           if [ -n "$(git status --porcelain)" ]; then
-            echo "ERROR: Code generation produced diffs. Please run 'task codegen:api-codegen' and 'task codegen:weaver-codegen' and commit the changes."
+            echo "ERROR: Code generation produced diffs. Please run 'task codegen:weaver-codegen' and commit the changes."
             echo ""
             echo "Changes detected:"
             git status --porcelain
@@ -299,7 +280,6 @@ jobs:
           WEBHOOK_PORT: "8088"
           LOKI_PORT: "3100"
           RUSTFS_PORT: "9000"
-          COMPASS_PORT: "8081"
           CI: "true"
         run: |
           for layer in $(echo "$LAYERS" | jq -r '.[]'); do
@@ -340,4 +320,6 @@ jobs:
     uses: ./.github/workflows/ci_publish_ghcr.yml
     with:
       trigger_source: "Local CI"
-    secrets: inherit
+    secrets:
+      QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
+      QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}

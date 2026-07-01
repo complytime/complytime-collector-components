@@ -9,17 +9,14 @@ dist:
 # OpenTelemetry component versions are pinned to v0.155.0 (experimental series)
 # to match the builder version and ensure compatibility with contrib packages.
 #
-# These versions are synchronized with truthbeam/go.mod via `task version:sync`.
-# When updating OTel versions:
-#   1. Update truthbeam/go.mod first (manual step, see DEVELOPMENT.md)
+# These versions are synchronized with proofwatch/go.mod and this manifest via
+# `task version:sync`. When updating OTel versions:
+#   1. Update proofwatch/go.mod first (manual step, see DEVELOPMENT.md)
 #   2. Run `task version:sync` to propagate to this manifest
 #   3. Verify with `task integration:test`
 #
 # The builder (ocb@v0.155.0) requires explicit versions in the manifest.
 # Versionless entries generate invalid go.mod syntax.
-#
-# Local modules (truthbeam) use v0.0.0 as a placeholder version.
-# The replace directive (below) overrides this with the local ../truthbeam path.
 
 exporters:
   - gomod: go.opentelemetry.io/collector/exporter/debugexporter v0.155.0
@@ -29,9 +26,6 @@ exporters:
 
 processors:
   - gomod: go.opentelemetry.io/collector/processor/batchprocessor v0.155.0
-  # TruthBeam: Our custom compliance enrichment processor (see replaces: below)
-  # Version is v0.0.0 (placeholder) - the replace directive uses the local path
-  - gomod: github.com/complytime/complybeacon/truthbeam v0.0.0
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor v0.155.0
 
 receivers:
@@ -52,17 +46,3 @@ extensions:
 
 connectors:
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/connector/signaltometricsconnector v0.155.0
-
-# REPLACE DIRECTIVES
-# ------------------
-# The 'replaces' block tells the builder to use local code instead of fetching
-# from a remote repository. This is essential for development because:
-#   - TruthBeam is in the same monorepo
-#   - We want changes to truthbeam to be immediately reflected in the collector
-#   - No need to publish truthbeam to a remote repo or update commit hashes
-#
-# The Containerfile copies truthbeam to /build/truthbeam/.
-# The builder generates code in /build/beacon/ (output_path: ./beacon).
-# From /build/beacon/go.mod, truthbeam is at ../truthbeam.
-replaces:
-  - github.com/complytime/complybeacon/truthbeam => ../truthbeam

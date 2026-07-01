@@ -1,6 +1,0 @@
-{
-  "policy": {
-    "policyEngineName": "conforma",
-    "policyRuleId": "github_branch_protection"
-  }
-}

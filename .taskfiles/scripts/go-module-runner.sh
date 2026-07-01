@@ -7,7 +7,7 @@
 # - test/lint/codegen: Uses MODULES var (app modules only) - tests/integration has separate task
 set -euo pipefail
 
-MODULES="${MODULES:-./proofwatch ./truthbeam}"
+MODULES="${MODULES:-./proofwatch}"
 GAZE_COVERPROFILE="${GAZE_COVERPROFILE:-coverage.out}"
 GAZE_NEW_FUNC_THRESHOLD="${GAZE_NEW_FUNC_THRESHOLD:-30}"
 
@@ -174,15 +174,6 @@ lint)
 	echo "--- All linting passed! ---"
 	;;
 
-api-codegen)
-	for m in $MODULES; do
-		(cd "$m" && GOFLAGS='' go generate ./...) || {
-			echo "Codegen failed for module: $m"
-			exit 1
-		}
-	done
-	;;
-
 crapload)
 	for m in $MODULES; do
 		echo "========================================================================================================="
@@ -257,7 +248,7 @@ crapload-check)
 
 *)
 	echo "Unknown command: $1"
-	echo "Available commands: deps, deps-update, test, test-race, coverage-report, lint, api-codegen, crapload, crapload-baseline, crapload-check"
+	echo "Available commands: deps, deps-update, test, test-race, coverage-report, lint, crapload, crapload-baseline, crapload-check"
 	exit 1
 	;;
 esac

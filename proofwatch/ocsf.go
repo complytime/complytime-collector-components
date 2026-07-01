@@ -12,8 +12,7 @@ import (
 
 var _ Evidence = (*OCSFEvidence)(nil)
 
-// OCSF-based evidence structured, with some security control profile fields. Attributes for `compliance` findings
-// by the `compass` service based on `gemara` based during pipeline enrichment.
+// OCSF-based evidence structured, with some security control profile fields.
 
 type OCSFEvidence struct {
 	ocsf.ScanActivity `json:",inline"`

@@ -2,7 +2,7 @@ version: "3"
 
 vars:
   # Task v3 does not inherit root vars in included files; keep in sync with Taskfile.yml.
-  MODULES: '{{.MODULES | default "./proofwatch ./truthbeam"}}'
+  MODULES: '{{.MODULES | default "./proofwatch"}}'
   GAZE_COVERPROFILE: '{{.GAZE_COVERPROFILE | default "coverage.out"}}'
   GAZE_NEW_FUNC_THRESHOLD: '{{.GAZE_NEW_FUNC_THRESHOLD | default "30"}}'
 

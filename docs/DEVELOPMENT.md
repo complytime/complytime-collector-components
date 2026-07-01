@@ -19,9 +19,7 @@ It complements the [DESIGN.md](./DESIGN.md) document by focusing on the practica
     * [Integration Testing](#integration-testing)
   * [Component Development](#component-development)
     * [1. ProofWatch Development](#1-proofwatch-development)
-    * [2. Compass Development](#2-compass-development)
-    * [3. TruthBeam Development](#3-truthbeam-development)
-    * [4. Beacon Distro Development](#4-beacon-distro-development)
+    * [2. Beacon Distro Development](#2-beacon-distro-development)
   * [Debugging and Troubleshooting](#debugging-and-troubleshooting)
     * [Debugging Tools](#debugging-tools)
   * [Code Generation](#code-generation)
@@ -81,8 +79,6 @@ This creates a `go.work` file that includes all project modules:
 - `.` (root module — tool dependencies)
 - `./proofwatch`
 - `./tests/integration`
-- `./tests/integration/mock-compass`
-- `./truthbeam`
 
 ### 4. Install Dependencies
 
@@ -165,18 +161,12 @@ go mod download -json github.com/open-telemetry/opentelemetry-collector-contrib/
 
 This will show something like `go.opentelemetry.io/collector/component v1.61.0` — that's your target stable version.
 
-**Step 3: Update truthbeam**
+**Step 3: Update proofwatch (if needed)**
 
 ```bash
-cd truthbeam
-go get go.opentelemetry.io/collector/component@v1.61.0 \
-      go.opentelemetry.io/collector/consumer@v1.61.0 \
-      go.opentelemetry.io/collector/pdata@v1.61.0 \
-      go.opentelemetry.io/collector/processor@v1.61.0 \
-      go.opentelemetry.io/collector/component/componenttest@v0.155.0 \
-      go.opentelemetry.io/collector/config/confighttp@v0.155.0 \
-      go.opentelemetry.io/collector/processor/processorhelper@v0.155.0 \
-      go.opentelemetry.io/collector/processor/processortest@v0.155.0
+cd proofwatch
+# ProofWatch uses stable OTel packages only
+go get go.opentelemetry.io/otel/log@v0.20.0
 go mod tidy
 cd ..
 ```
@@ -207,10 +197,9 @@ The OTel version doesn't exist yet. Check the [releases page](https://github.com
 You've mixed stable/experimental versions from different releases. Reset to the pinned versions:
 
 ```bash
-cd truthbeam
+cd proofwatch
 # Downgrade to current pinned versions
-go get go.opentelemetry.io/collector/component@v1.57.0 \
-       go.opentelemetry.io/collector/component/componenttest@v0.151.0
+go get go.opentelemetry.io/otel/log@v1.57.0
 go mod tidy
 cd ..
 task version:sync
@@ -234,24 +223,19 @@ complybeacon/
 │   ├── attributes.go          # Attribute definitions
 │   ├── evidence.go            # Evidence types
 │   └── proofwatch.go          # Main library
-├── truthbeam/                  # TruthBeam processor module
-│   ├── internal/              # Internal packages
-│   ├── config.go              # Configuration
-│   └── processor.go           # Main processor logic
 ├── beacon-distro/              # OpenTelemetry Collector distribution
 │   ├── config.yaml            # Collector configuration
 │   └── Containerfile.collector # Container definition
 ├── configs/                    # Deployment configs (collector, Loki)
 │   ├── collector-auth.yaml    # Auth layer: OIDC-secured OTLP receivers
 │   ├── collector-base.yaml    # Base layer: OCSF transform + Loki
-│   ├── collector-enrichment.yaml # Enrichment layer: adds TruthBeam
 │   ├── collector-storage.yaml # Storage layer: adds S3 export
 │   ├── collector-storage-tls.yaml # Storage TLS layer: S3 with TLS
 │   └── loki.yaml              # Loki configuration
 ├── certs/                      # TLS certificate generation
 ├── deploy/                     # Deployment infrastructure (Terraform)
 ├── tests/                      # Test infrastructure
-│   └── integration/           # E2E Ginkgo tests, mock Compass, fixtures
+│   └── integration/           # E2E Ginkgo tests and fixtures
 └── bin/                        # Built binaries (created by task infra:deploy)
 ```
 
@@ -271,18 +255,18 @@ task dev:coverage-report
 
 # Run tests for specific module
 cd proofwatch && go test -v ./...
-cd truthbeam && go test -v ./...
 ```
 
 ### Integration Testing
 
-The project includes automated integration tests using [Ginkgo](https://onsi.github.io/ginkgo/) that validate the evidence pipeline at three deployment layers:
+The project includes automated integration tests using [Ginkgo](https://onsi.github.io/ginkgo/) that validate the evidence pipeline at four deployment layers:
 
-| Layer      | Profile      | What it tests                         |
-|------------|--------------|---------------------------------------|
-| Base       | *(default)*  | OCSF transform + Loki export          |
-| Storage    | `storage`    | S3 evidence export + partitioning     |
-| Enrichment | `enrichment` | TruthBeam enrichment via mock Compass |
+| Layer       | Profile       | What it tests                     |
+|-------------|---------------|-----------------------------------|
+| Base        | *(default)*   | OCSF transform + Loki export      |
+| Storage     | `storage`     | S3 evidence export + partitioning |
+| Storage-TLS | `storage-tls` | TLS-secured S3 export             |
+| Auth        | `auth`        | OIDC-secured OTLP receivers       |
 
 **Prerequisites:**
 - Podman and podman-compose
@@ -299,12 +283,13 @@ task integration:test
 ```bash
 task integration:test-profile PROFILE=base
 task integration:test-profile PROFILE=storage
-task integration:test-profile PROFILE=enrichment
+task integration:test-profile PROFILE=storage-tls
+task integration:test-profile PROFILE=auth
 ```
 
 Each run builds the collector image, starts the appropriate services, runs the matching Ginkgo test suite (filtered by label), and tears down. Certificates are generated automatically if missing. Test output is written to `.test-output/integration/`.
 
-For details on test cases, fixtures, and mock Compass configuration, see [tests/integration/README.md](../tests/integration/README.md).
+For details on test cases and fixtures, see [tests/integration/README.md](../tests/integration/README.md).
 
 ## Component Development
 
@@ -332,50 +317,7 @@ task lint
 go fmt ./...
 ```
 
-### 2. Compass Development
-
-Compass is an external enrichment service that TruthBeam connects to for compliance lookups. It must be provided separately and is not included in the demo stack.
-
-### 3. TruthBeam Development
-
-TruthBeam is an OpenTelemetry Collector processor for enriching logs.
-
-**Key Files:**
-- `truthbeam/processor.go` - Main processor logic
-- `truthbeam/config.go` - Configuration structures
-- `truthbeam/factory.go` - Processor factory
-
-**Development Workflow:**
-```bash
-cd truthbeam
-
-# Run tests
-go test -v ./...
-
-# Test with collector (requires beacon-distro)
-cd ../beacon-distro
-# Modify config to use local truthbeam
-# Run collector with local processor
-```
-
-**Local development config**
-
-If you want locally test the TruthBeam, remember to change the [manifest.yaml](../beacon-distro/manifest.yaml)
-
-Add replace directive at the end of [manifest.yaml](../beacon-distro/manifest.yaml), to make sure collector use your `truthbeam` code. Default collector will use `- gomod: github.com/complytime/complybeacon/truthbeam main`
-
-For example:
-```yaml
-replaces:
-  - github.com/complytime/complybeacon/truthbeam => github.com/AlexXuan233/complybeacon/truthbeam 52e4a76ea0f72a7049e73e7a5d67d988116a3892
-```
-or
-```yaml
-replaces:
-  - github.com/complytime/complybeacon/truthbeam => github.com/AlexXuan233/complybeacon/truthbeam main
-```
-
-### 4. Beacon Distro Development
+### 2. Beacon Distro Development
 
 The Beacon distribution is a custom OpenTelemetry Collector.
 
@@ -406,7 +348,7 @@ task infra:deploy
 When you modify Containerfiles or source code and open a PR, the CI automatically builds and publishes dev images (if you're an org member):
 
 ```bash
-# 1. Make changes to beacon-distro, proofwatch, or truthbeam
+# 1. Make changes to beacon-distro or proofwatch
 vim beacon-distro/Containerfile.collector
 
 # 2. Commit and push to your branch
@@ -576,7 +518,7 @@ If your PR doesn't produce an image:
 
 2. **Check if files changed:** Image builds only trigger when:
    - Any `Containerfile*` changes
-   - Source code in `beacon-distro/`, `proofwatch/`, `truthbeam/` changes
+   - Source code in `beacon-distro/`, `proofwatch/` changes
    - The workflow file (`.github/workflows/ci_publish_ghcr.yml`) changes
 
 3. **Check workflow run:** Go to **Actions** → **Publish Images to GHCR** and check for errors
@@ -618,8 +560,7 @@ If you modify the semantic conventions:
 vim model/attributes.yaml
 vim model/entities.yaml
 
-# Regenerate all code (API + weaver)
-task codegen:api-codegen
+# Regenerate all code (weaver only)
 task codegen:weaver-codegen
 ```
 
@@ -627,11 +568,11 @@ task codegen:weaver-codegen
 
 ### Local Development Demo
 
-The demo environment orchestrates multiple containers (Grafana, Loki, Beacon Collector, Compass).
+The demo environment orchestrates multiple containers (Grafana, Loki, Beacon Collector).
 
 1. **Generate self-signed certificate**
 
-Since compass and truthbeam enable TLS by default, first generate self-signed certificates for testing/development:
+For TLS testing, first generate self-signed certificates:
 
 ```bash
 task infra:generate-self-signed-cert
@@ -647,7 +588,7 @@ podman-compose -f compose.yaml up -d
 ```
 
 This automatically:
-- Syncs OTel versions from truthbeam to beacon-distro
+- Syncs OTel versions from proofwatch and manifest.yaml
 - Builds the beacon collector image
 - Starts all services (Grafana, Loki, Collector)
 
