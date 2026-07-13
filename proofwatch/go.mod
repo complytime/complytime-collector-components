@@ -8,7 +8,7 @@ require (
 	github.com/gemaraproj/go-gemara v0.8.0
 	github.com/stretchr/testify v1.11.1
 	github.com/telophasehq/go-ocsf v0.2.1
-	go.opentelemetry.io/collector/pdata v1.61.0
+	go.opentelemetry.io/collector/pdata v1.62.0
 	go.opentelemetry.io/otel v1.44.0
 	go.opentelemetry.io/otel/log v0.20.0
 	go.opentelemetry.io/otel/metric v1.44.0
@@ -66,7 +66,7 @@ require (
 	github.com/unbound-force/gaze v1.6.0 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
-	go.opentelemetry.io/collector/featuregate v1.61.0 // indirect
+	go.opentelemetry.io/collector/featuregate v1.62.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20260611194520-c48552f49976 // indirect
 	golang.org/x/mod v0.37.0 // indirect
@@ -79,5 +79,5 @@ require (
 
 // OPENTELEMETRY VERSION CONSTRAINT
 // ---------------------------------
-// OTel Collector packages are pinned to v1.61.0 to align with truthbeam and beacon-distro.
-// NOT automatically updated by `task dev:deps:update`. See truthbeam/go.mod for details.
+// OTel Collector packages are pinned to v1.62.0 to align with beacon-distro.
+// NOT automatically updated by `task dev:deps:update`. See docs/DEVELOPMENT.md for details.

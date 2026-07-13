@@ -131,6 +131,7 @@ OpenTelemetry Collector publishes two version series in each release:
 Each release publishes **both versions together**:
 - v0.151.0 release (April 2025): `v1.57.0` (stable) + `v0.151.0` (experimental)
 - v0.155.0 release (June 2025): `v1.61.0` (stable) + `v0.155.0` (experimental)
+- v0.156.0 release (July 2025): `v1.62.0` (stable) + `v0.156.0` (experimental)
 
 **How we handle it:**
 
@@ -138,7 +139,7 @@ Each release publishes **both versions together**:
 - `task dev:deps:update` **excludes OTel packages** — they are updated manually after verifying contrib compatibility
 - `task version:sync` propagates pinned OTel versions to all modules, Containerfiles, and CI configs
 
-**Current version:** v1.61.0 (stable) + v0.155.0 (experimental)
+**Current version:** v1.62.0 (stable) + v0.156.0 (experimental)
 
 **Why the constraint?** Contrib packages (used in `beacon-distro/manifest.yaml`) release 1-2 versions behind the main collector packages. Blindly upgrading to the latest OTel version causes build failures when contrib packages don't exist yet.
 
@@ -148,18 +149,18 @@ Each release publishes **both versions together**:
 
 **Step 1: Check latest contrib release**
 
-Visit the [contrib releases page](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases) and note the latest version (e.g., `v0.155.0`).
+Visit the [contrib releases page](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases) and note the latest version (e.g., `v0.156.0`).
 
 **Step 2: Identify required OTel version**
 
 Check a contrib package's `go.mod` to see what OTel version it requires:
 
 ```bash
-go mod download -json github.com/open-telemetry/opentelemetry-collector-contrib/connector/signaltometricsconnector@v0.155.0 | \
+go mod download -json github.com/open-telemetry/opentelemetry-collector-contrib/connector/signaltometricsconnector@v0.156.0 | \
   jq -r '.GoMod' | xargs cat | grep 'go.opentelemetry.io/collector/component'
 ```
 
-This will show something like `go.opentelemetry.io/collector/component v1.61.0` — that's your target stable version.
+This will show something like `go.opentelemetry.io/collector/component v1.62.0` — that's your target stable version.
 
 **Step 3: Update proofwatch (if needed)**
 
@@ -199,7 +200,7 @@ You've mixed stable/experimental versions from different releases. Reset to the 
 ```bash
 cd proofwatch
 # Downgrade to current pinned versions (example — use the versions from Step 3)
-go get go.opentelemetry.io/collector/pdata@v1.61.0
+go get go.opentelemetry.io/collector/pdata@v1.62.0
 go mod tidy
 cd ..
 task version:sync
