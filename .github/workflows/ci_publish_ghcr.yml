@@ -88,7 +88,7 @@ jobs:
       id-token: write # OIDC for registry auth
       actions: read # access reusable workflow
       attestations: write # publish build provenance
-    uses: complytime/org-infra/.github/workflows/reusable_publish_ghcr.yml@638b2037394ca0f0b860a135c7c27dce75fd3c03 # v0.5.0
+    uses: complytime/org-infra/.github/workflows/reusable_publish_ghcr.yml@aff4817ed6f0364e7f899bfb63ec6db42e69fde2 # v0.6.0
     with:
       component_name: beacon-distro
       containerfile_path: beacon-distro/Containerfile.collector
