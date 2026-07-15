@@ -239,7 +239,7 @@ jobs:
     permissions:
       packages: read # pull source image from GHCR
       id-token: write # OIDC for keyless cosign signing on destination
-    uses: complytime/org-infra/.github/workflows/reusable_publish_quay.yml@638b2037394ca0f0b860a135c7c27dce75fd3c03 # v0.5.0
+    uses: complytime/org-infra/.github/workflows/reusable_publish_quay.yml@aff4817ed6f0364e7f899bfb63ec6db42e69fde2 # v0.6.0
     with:
       source_registry: ghcr.io
       source_image: complytime/complybeacon-beacon-distro
