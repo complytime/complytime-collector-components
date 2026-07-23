@@ -87,7 +87,7 @@ resource "grafana_dashboard" "compliance_evidence" {
             uid  = data.grafana_data_source.loki.uid
           }
           editorMode = "code"
-          # Count enriched evidence logs (have policy_evaluation_result from truthbeam - signaltometrics logs don't have this)
+          # Count evidence logs that have a policy_evaluation_result attribute
           expr       = "sum(count_over_time({service_name=~\".+\"} | json | policy_evaluation_result=~\".+\" [$__range]))"
           queryType  = "range"
           refId      = "A"
@@ -144,7 +144,7 @@ resource "grafana_dashboard" "compliance_evidence" {
             uid  = data.grafana_data_source.loki.uid
           }
           editorMode   = "code"
-          # Query enriched evidence logs (have policy_evaluation_result from truthbeam - signaltometrics logs don't have this)
+          # Query evidence logs that have a policy_evaluation_result attribute
           expr         = "sum by (policy_evaluation_result) (count_over_time({service_name=~\".+\"} | json | policy_evaluation_result=~\".+\" [$__interval]))"
           legendFormat = "{{policy_evaluation_result}}"
           queryType    = "range"
@@ -279,7 +279,7 @@ resource "grafana_dashboard" "compliance_evidence" {
             uid  = data.grafana_data_source.loki.uid
           }
           editorMode   = "code"
-          # Query enriched evidence logs (have policy_engine_name from truthbeam - signaltometrics logs don't have policy_evaluation_result)
+          # Query evidence logs by policy_engine_name (filtered to those with policy_evaluation_result)
           expr         = "sum by (policy_engine_name) (count_over_time({service_name=~\".+\"} | json | policy_engine_name=~\".+\" and policy_evaluation_result=~\".+\" [$__range]))"
           legendFormat = "{{policy_engine_name}}"
           queryType    = "range"
@@ -337,7 +337,7 @@ resource "grafana_dashboard" "compliance_evidence" {
             uid  = data.grafana_data_source.loki.uid
           }
           editorMode   = "code"
-          # Query enriched evidence logs (have policy_rule_id from truthbeam - signaltometrics logs don't have policy_evaluation_result)
+          # Query evidence logs by policy_rule_id (filtered to those with policy_evaluation_result)
           expr         = "sum by (policy_rule_id) (count_over_time({service_name=~\".+\"} | json | policy_rule_id=~\".+\" and policy_evaluation_result=~\".+\" [$__range]))"
           legendFormat = "{{policy_rule_id}}"
           queryType    = "range"
@@ -394,7 +394,7 @@ resource "grafana_dashboard" "compliance_evidence" {
             uid  = data.grafana_data_source.loki.uid
           }
           editorMode = "code"
-          # Query enriched logs: real-time evidence rate per control (uses compliance_control_id from truthbeam when available, otherwise policy_rule_id)
+          # Query real-time evidence rate per control (groups by compliance_control_id and policy_rule_id)
           expr         = "sum by (compliance_control_id, policy_rule_id) (rate({service_name=~\".+\"} | json | policy_evaluation_result=~\".+\" and policy_rule_id=~\".+\" [$__interval]))"
           legendFormat = "{{compliance_control_id}} ({{policy_rule_id}})"
           queryType    = "range"
