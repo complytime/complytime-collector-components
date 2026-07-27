@@ -17,7 +17,7 @@ The `GemaraEvidence.Attributes()` method SHALL emit the `policy.rule.id` OTel at
 All Gemara type references SHALL use the official `gemaraproj/go-gemara` v0.3.0 SDK types: `Actor` (not `Author`), `EntryMapping` (not `Mapping`), `Plan` (not `Procedure`), and `Metadata`/`AssessmentLog` from the top-level package (not `layer4` sub-package).
 
 #### Scenario: Import path correctness
-- **WHEN** any Go source file in `proofwatch` or `truthbeam` imports Gemara types
+- **WHEN** any Go source file in `proofwatch` imports Gemara types
 - **THEN** the import path SHALL be `github.com/gemaraproj/go-gemara` and SHALL NOT reference `github.com/ossf/gemara/layer4`
 
 ### Requirement: policy.rule.id requirement level alignment
