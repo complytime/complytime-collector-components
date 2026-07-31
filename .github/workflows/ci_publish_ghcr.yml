@@ -168,7 +168,7 @@ jobs:
     permissions:
       packages: write # attach signature to image
       id-token: write # OIDC for keyless signing
-    uses: complytime/org-infra/.github/workflows/reusable_sign_and_verify.yml@aff4817ed6f0364e7f899bfb63ec6db42e69fde2 # v0.6.0
+    uses: complytime/org-infra/.github/workflows/reusable_sign_and_verify.yml@0c784711926c9864f027ec565fd7c06a382d80f8 # v0.7.1
     with:
       image_name: ${{ needs.build-beacon-distro.outputs.image }}
       digest: ${{ needs.build-beacon-distro.outputs.digest }}
