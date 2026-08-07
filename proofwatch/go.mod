@@ -5,7 +5,7 @@ go 1.26.5
 tool github.com/unbound-force/gaze/cmd/gaze
 
 require (
-	github.com/gemaraproj/go-gemara v0.8.0
+	github.com/gemaraproj/go-gemara v0.9.0
 	github.com/stretchr/testify v1.11.1
 	github.com/telophasehq/go-ocsf v0.2.1
 	go.opentelemetry.io/collector/pdata v1.63.0
@@ -70,7 +70,7 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20260611194520-c48552f49976 // indirect
 	golang.org/x/mod v0.37.0 // indirect
-	golang.org/x/sync v0.21.0 // indirect
+	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/sys v0.46.0 // indirect
 	golang.org/x/text v0.38.0 // indirect
 	golang.org/x/tools v0.47.0 // indirect
