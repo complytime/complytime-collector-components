@@ -201,21 +201,6 @@ func TestVersion(t *testing.T) {
 	assert.Equal(t, "0.1.0", version)
 }
 
-func TestToLogKeyValues(t *testing.T) {
-	attrs := []attribute.KeyValue{
-		attribute.String("key1", "value1"),
-		attribute.Int("key2", 42),
-		attribute.Bool("key3", true),
-	}
-
-	logAttrs := ToLogKeyValues(attrs)
-
-	assert.Equal(t, len(attrs), len(logAttrs))
-	for i, logAttr := range logAttrs {
-		assert.Equal(t, string(attrs[i].Key), logAttr.Key)
-	}
-}
-
 // createTestEvidence is defined in ocsf_test.go and shared across test files
 // createTestGemaraEvidence is defined in gemara_test.go
 // invalidEvidence is a test implementation that fails JSON marshaling

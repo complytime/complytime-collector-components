@@ -75,8 +75,8 @@ func (w *ProofWatch) LogWithSeverity(ctx context.Context, evidence Evidence, sev
 	record.SetObservedTimestamp(time.Now())
 	// Set event time
 	record.SetTimestamp(evidence.Timestamp())
-	record.AddAttributes(ToLogKeyValues(attrs)...)
-	record.SetBody(olog.StringValue(string(jsonData))) // Retains the original body for flexibility.
+	record.AddAttributes(attrs...)
+	record.SetBody(attribute.StringValue(string(jsonData))) // Retains the original body for flexibility.
 
 	span.AddEvent("evidence.logged", trace.WithAttributes(attrs...), trace.WithTimestamp(time.Now()))
 
@@ -85,15 +85,6 @@ func (w *ProofWatch) LogWithSeverity(ctx context.Context, evidence Evidence, sev
 	w.observer.Processed(ctx, attrs...)
 
 	return nil
-}
-
-// ToLogKeyValues converts slice of attribute.KeyValue to log.KeyValue
-func ToLogKeyValues(attrs []attribute.KeyValue) []olog.KeyValue {
-	logAttrs := make([]olog.KeyValue, len(attrs))
-	for i, attr := range attrs {
-		logAttrs[i] = olog.KeyValueFromAttribute(attr)
-	}
-	return logAttrs
 }
 
 // Version is the current release version of Proofwatch
