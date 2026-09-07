@@ -105,7 +105,7 @@ All commits MUST use Conventional Commits, the `-s` flag (Signed-off-by), and in
 
 ## Active Technologies
 
-- Go 1.26.4, multi-module workspace (`go.work`)
+- Go 1.26.5, multi-module workspace (`go.work`)
 - OpenTelemetry Collector SDK v1.62.0 / v0.156.0 (stable + experimental series, component framework, pipeline data, processor interfaces)
 - `github.com/gemaraproj/go-gemara` v0.7.0 (compliance evidence model — Gemara v1 schema)
 - `github.com/telophasehq/go-ocsf` v0.2.1 (OCSF cybersecurity schema types)
@@ -115,5 +115,5 @@ All commits MUST use Conventional Commits, the `-s` flag (Signed-off-by), and in
 - golangci-lint v2, MegaLinter, SonarCloud, gaze (quality tooling)
 - Task v3 ([taskfile.dev](https://taskfile.dev)) — build automation
 - Podman + podman-compose (container runtime)
-- Container: UBI10 Minimal (runtime), golang:1.26.4 (build)
+- Container: UBI10 Minimal (runtime), golang:1.26.5 (build)
 - Registries: `ghcr.io` (primary), Quay.io (secondary)
