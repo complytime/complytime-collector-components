@@ -26,6 +26,7 @@ jobs:
     with:
       # OSV focuses on known CVEs in dependencies; Trivy adds broader coverage
       enable_trivy_source: true
+      trivy_ignorefile: ''
 
   call_reusable_security:
     name: OpenSSF Scorecards

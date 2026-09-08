@@ -1,0 +1,80 @@
+name: "🐛 Bug Report"
+description: Report something that is currently broken or failing in production.
+title: "[Bug] "
+labels: ["type:bug"]
+body:
+  - type: textarea
+    id: current-behavior
+    attributes:
+      label: "🚨 Current Behavior"
+      description: Clear description of what is failing right now.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: "🎯 Expected Behavior"
+      description: What should be happening instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact-if-fixed
+    attributes:
+      label: "💥 End-User Impact — if the bug is fixed"
+      description: What is the impact on the current customer if the bug is fixed?
+      placeholder: |
+        e.g., Blocked from completing checkout, visual styling issue only, data loss risk, minor workaround required
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact-if-not-fixed
+    attributes:
+      label: "💥 End-User Impact — if the bug is NOT fixed"
+      description: What is the impact on the current customer if the bug is NOT fixed?
+      placeholder: |
+        e.g., Customer remains completely blocked from completing checkout, continuous risk of missing compliance audit windows, minor manual workaround remains required daily
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: "👣 Steps to Reproduce"
+      description: Steps to reproduce the behavior.
+      placeholder: |
+        1. Go to '...'
+        2. Click on '....'
+        3. Scroll down to '....'
+        4. See error message: [Paste error log or screenshot here]
+    validations:
+      required: true
+
+  - type: input
+    id: release-version
+    attributes:
+      label: "💻 Release Version"
+      description: Release version, or commit date if on main
+      placeholder: "[or commit date if in main]"
+    validations:
+      required: true
+
+  - type: textarea
+    id: verification-plan
+    attributes:
+      label: "🧪 Verification & Validation Plan"
+      description: How was this validated?
+      placeholder: |
+        e.g., Checked staging logs, verified with solid testing evidence, reproduced locally with automated test suite
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: verification-checklist
+    attributes:
+      label: "🧪 Verification Checklist"
+      options:
+        - label: Bug patch verified successfully in target environment.
+        - label: Regression testing completed to ensure nearby features are unaffected.

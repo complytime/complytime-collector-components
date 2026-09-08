@@ -40,7 +40,7 @@ jobs:
     needs: [call_deps_reviewer, call_dependabot_reviewer]
     permissions:
       issues: read
-      pull-requests: write  # Necessary to write a comment
+      pull-requests: write # Necessary to write a comment
     steps:
       - name: Comment from Dependabot Reviewer
         uses: peter-evans/create-or-update-comment@e8674b075228eee787fea43ef493e45ece1004c9 # v5.0.0
@@ -85,8 +85,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: [call_deps_reviewer, call_dependabot_reviewer]
     permissions:
-      contents: write  # Required for gh pr merge --auto
-      pull-requests: write  # Required to approve a PR
+      contents: write # Required for gh pr merge --auto
+      pull-requests: write # Required to approve a PR
     steps:
       - name: Auto-approve if Confident
         id: auto_approve

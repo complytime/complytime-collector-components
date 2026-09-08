@@ -1,6 +1,6 @@
 <!--
 Sync Impact Report:
-Version: 1.0.2 → 1.1.0 → 1.2.0 (Agent-optimized wording, repo-agnostic refactor, RFC 2119 normalization, org-infra alignment)
+Version: 1.0.2 → 1.1.0 → 1.2.0 → 1.3.0 (Agent-optimized wording, repo-agnostic refactor, RFC 2119 normalization, org-infra alignment, org-infra-only workflow naming)
 Modified Principles:
   - III. Incremental Improvement: Reframed from human-motivational to agent-enforceable MUST rules
   - IV. Code is Written for Humans First → IV. Readability First: Retitled and tightened intro
@@ -15,6 +15,7 @@ Other Changes:
   - Normalized all directives across Contribution Workflow, Coding Standards, and Governance to RFC 2119
   - Tightened vague language ("sensible defaults", "one sitting", etc.)
   - Added "code agents" to Governance applicability statement
+  - YAML / GitHub Actions: org-infra-only workflows SHOULD use a verb prefix (`sync_`, `report_`)
 Templates requiring updates:
   ⚠ plan-template.md - Constitution Check gates should reflect retitled Principle IV (Readability First)
   ✅ spec-template.md - No changes needed (generic template)
@@ -85,7 +86,7 @@ Decrease the number of decisions a developer or user needs to make. Provide defa
 Every repository under the ComplyTime organization MUST contain the following standard files in the root directory to ensure a consistent developer experience:
 
 | File | Description | Standard |
-|:---|:----|:----|
+| :--- | :---- | :---- |
 | `README.md` | Project overview, installation, and usage. | Markdown |
 | `LICENSE` | Legal terms of use. | **Apache License 2.0** |
 | `CONTRIBUTING.md` | Guidelines for contributors. | Link to org-wide guide or repo-specific details. |
@@ -190,6 +191,7 @@ Repositories SHOULD define Go-specific lint rules (e.g., via `.golangci.yml`) an
 
 - **Reusable workflows**: MUST be prefixed with `reusable_` and have a clear, descriptive name reflecting their function (e.g., `reusable_vuln_scan.yml`).
 - **Consumer workflows**: Workflows that call reusable workflows MUST be prefixed with `ci_` (e.g., `ci_security.yml`).
+- **Org-infra-only workflows**: Workflows that run only in `org-infra` (not synced to consumer repos, not `workflow_call`) SHOULD use a verb prefix such as `sync_` or `report_` rather than `ci_` or `reusable_` (e.g., `sync_labels.yml`, `sync_project_board.yml`, `report_sprint_velocity.yml`).
 
 #### Security
 
@@ -266,4 +268,4 @@ This constitution is the org-wide shared reference for all ComplyTime repositori
 
 Repository-level constitutions are incremental -- they extend, not replace, this document. In case of conflict, this org-wide constitution takes precedence.
 
-**Version**: 1.2.0 | **Ratified**: 2026-02-25 | **Last Amended**: 2026-03-18
+**Version**: 1.3.0 | **Ratified**: 2026-02-25 | **Last Amended**: 2026-08-27

@@ -1,0 +1,32 @@
+name: "🔬 Spike"
+description: Time-boxed investigation to explore a technical approach or clear up uncertainty.
+title: "[Spike] "
+labels: ["type:spike"]
+body:
+  - type: textarea
+    id: core-question
+    attributes:
+      label: "❓ The Core Question"
+      description: What specific technical unknown are we trying to answer with this exploration?
+      placeholder: |
+        Example: Can our architecture handle 500 simultaneous requests on mobile viewports?
+    validations:
+      required: true
+
+  - type: input
+    id: time-allocated
+    attributes:
+      label: "⏱️ Time Allocated"
+      description: Time-box for this spike
+      placeholder: "e.g., 4 Hours / Max 1 Day"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: required-deliverables
+    attributes:
+      label: "🏁 Required Deliverables"
+      options:
+        - label: Written summary of findings added as a comment below or linked markdown file.
+        - label: Proof of Concept (PoC) code shared when applicable (branch, fork, or local investigation notes).
+        - label: Clear "Go / No-Go" technical recommendation for the Architect.

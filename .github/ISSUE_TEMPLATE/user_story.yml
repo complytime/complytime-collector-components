@@ -1,0 +1,74 @@
+name: "📖 User Story"
+description: Describe a feature or user outcome from the user's perspective.
+title: "[Story] "
+labels: ["type:story"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ### 👤 User Story
+  - type: input
+    id: as-a
+    attributes:
+      label: "As a"
+      description: Type of user
+      placeholder: "[type of user]"
+    validations:
+      required: true
+  - type: input
+    id: i-want
+    attributes:
+      label: "I want to"
+      description: Perform an action / have a capability
+      placeholder: "[perform an action / have a capability]"
+    validations:
+      required: true
+  - type: input
+    id: so-that
+    attributes:
+      label: "So that"
+      description: The business value or benefit received
+      placeholder: "[the business value or benefit received]"
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: "🎯 Acceptance Criteria"
+      description: What must happen for this feature to be considered structurally functional?
+      placeholder: |
+        - [ ] Criteria 1 (e.g., Clicking 'Export' generates a CSV file download)
+        - [ ] Criteria 2
+        - [ ] Criteria 3
+    validations:
+      required: true
+
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: "🚫 Out of Scope"
+      description: What is explicitly not included in this story?
+      placeholder: |
+        - [ ] Item 1
+        - [ ] Item 2
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: definition-of-done-quality
+    attributes:
+      label: "🏁 Definition of Done — 🛠️ Quality & Testing"
+      options:
+        - label: Code has been peer-reviewed for bugs and vulnerabilities.
+        - label: Proper testing has been completed and passes (Unit, Integration, E2E via GitHub Actions).
+        - label: The feature has been demonstrated/validated successfully in the target environment.
+
+  - type: checkboxes
+    id: definition-of-done-docs
+    attributes:
+      label: "🏁 Definition of Done — 📝 Architecture & Docs"
+      options:
+        - label: Usage documentation or changelog updated (if user-facing changes introduced).
+        - label: Local ADR written and verified by Tech Lead if technical architecture deviated.
+        - label: Any newly introduced technical debt has been logged as a GitHub issue.
