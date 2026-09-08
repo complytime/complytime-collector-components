@@ -6,16 +6,19 @@ dist:
 
 # VERSION MANAGEMENT
 # ------------------
-# OpenTelemetry component versions are pinned to v0.156.0 (experimental series)
-# to match the builder version and ensure compatibility with contrib packages.
+# This manifest is the single source of truth for OTel Collector versions.
+# Components use the experimental series (v0.x), providers use stable (v1.x).
 #
-# These versions are synchronized with proofwatch/go.mod and this manifest via
-# `task version:sync`. When updating OTel versions:
-#   1. Update proofwatch/go.mod first (manual step, see DEVELOPMENT.md)
-#   2. Run `task version:sync` to propagate to this manifest
-#   3. Verify with `task integration:test`
+# proofwatch is a separate Go module that only depends on pdata and manages
+# its own OTel versions independently. Dependabot can bump proofwatch/pdata
+# without requiring changes here.
 #
-# The builder (ocb@v0.156.0) requires explicit versions in the manifest.
+# To upgrade the collector stack:
+#   1. Update versions in this manifest (manual step, see DEVELOPMENT.md)
+#   2. Run `task version:sync` to propagate to other collector modules
+#   3. Verify with `task version:check` and `task integration:test`
+#
+# The builder (ocb) requires explicit versions in the manifest.
 # Versionless entries generate invalid go.mod syntax.
 
 exporters:

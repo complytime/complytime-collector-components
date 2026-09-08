@@ -4,17 +4,18 @@
 #
 # Source of truth:
 #   Go version  — go.work `go` directive
-#   OTel version — proofwatch/go.mod (stable v1.x series) + manifest.yaml (experimental v0.x)
+#   OTel version — beacon-distro/manifest.yaml (both stable v1.x and experimental v0.x)
 #
-# Strategy: Track stable (v1.x) versions. Go automatically pulls in
-# the matching experimental (v0.x) versions as needed.
+# proofwatch is excluded from OTel sync because it only depends on pdata and
+# manages its own OTel versions independently. Dependabot can bump proofwatch's
+# pdata without requiring a full collector stack upgrade.
+# See: https://github.com/complytime/complytime-collector-components/issues/430
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT_DIR"
 
 GO_WORK="go.work"
-PROOFWATCH_GOMOD="proofwatch/go.mod"
 MANIFEST="beacon-distro/manifest.yaml"
 
 # Auto-discover go.mod files and Containerfiles with Go base images
@@ -79,35 +80,43 @@ done
 
 echo ""
 
-# ── Extract OTel versions ────────────────────────────────────────
-echo "=== OTel version sync (sources: $PROOFWATCH_GOMOD + $MANIFEST) ==="
+# ── Extract OTel versions from manifest ──────────────────────────
+echo "=== OTel version sync (source: $MANIFEST) ==="
 
-# Stable (v1.x) from proofwatch — the library module tracks the collector pdata series
-OTEL_STABLE=$(sed -n '/^require (/,/^)/p' "$PROOFWATCH_GOMOD" |
-	grep 'go.opentelemetry.io/collector' |
-	grep -oE 'v1\.[0-9]+\.[0-9]+' |
-	sort -V -u | tail -1)
+# Both version series come from the manifest — the single source of truth for the
+# collector stack. proofwatch manages its own pdata version independently.
 
-# Experimental (v0.x) from manifest — the distro pins component versions explicitly
+# Experimental (v0.x) from manifest components
 OTEL_EXPERIMENTAL=$(grep -E 'go\.opentelemetry\.io/collector/(exporter|processor|receiver)' "$MANIFEST" |
 	grep -v '^\s*#' |
 	grep -oE 'v0\.[0-9]+\.[0-9]+' |
 	sort -V -u | tail -1)
 
-if [[ -z "$OTEL_STABLE" ]]; then
-	echo "ERROR: Could not extract stable (v1.x) OTel version from $PROOFWATCH_GOMOD"
-	exit 1
-fi
+# Stable (v1.x) from manifest providers (confmap providers use the stable series)
+OTEL_STABLE=$(grep -E 'go\.opentelemetry\.io/collector/confmap/provider' "$MANIFEST" |
+	grep -v '^\s*#' |
+	grep -oE 'v1\.[0-9]+\.[0-9]+' |
+	sort -V -u | tail -1)
+
 if [[ -z "$OTEL_EXPERIMENTAL" ]]; then
 	echo "ERROR: Could not extract experimental (v0.x) OTel version from $MANIFEST"
 	exit 1
 fi
+if [[ -z "$OTEL_STABLE" ]]; then
+	echo "ERROR: Could not extract stable (v1.x) OTel version from $MANIFEST"
+	exit 1
+fi
 
-echo "  Stable (tracking): $OTEL_STABLE"
-echo "  Experimental (derived): $OTEL_EXPERIMENTAL"
+echo "  Experimental: $OTEL_EXPERIMENTAL"
+echo "  Stable: $OTEL_STABLE"
 
 # ── Sync OTel versions in workspace module go.mod files ──────────
+# proofwatch is excluded — it only depends on pdata and manages its own version.
 for MODULE in "${WORKSPACE_MODULES[@]}"; do
+	if [[ "$MODULE" == "proofwatch" ]]; then
+		echo "  SKIP: $MODULE/go.mod (independent pdata consumer)"
+		continue
+	fi
 	GOMOD="$MODULE/go.mod"
 	if [[ ! -f "$GOMOD" ]]; then
 		continue
@@ -141,6 +150,9 @@ fi
 echo ""
 echo "=== Running go mod tidy ==="
 for MODULE in "${WORKSPACE_MODULES[@]}"; do
+	if [[ "$MODULE" == "proofwatch" ]]; then
+		continue
+	fi
 	if [[ ! -f "$MODULE/go.mod" ]]; then
 		continue
 	fi
