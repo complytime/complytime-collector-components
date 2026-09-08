@@ -1,0 +1,32 @@
+name: "⚙️ Task"
+description: A technical delivery task that does not directly introduce a new user-facing feature.
+title: "[Task] "
+labels: ["type:task"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: "📝 Description"
+      description: Provide a clear, technical overview of what needs to be changed in the codebase.
+    validations:
+      required: true
+
+  - type: textarea
+    id: technical-checklist
+    attributes:
+      label: "🛠️ Technical Checklist"
+      description: Steps to complete this task.
+      placeholder: |
+        - [ ] Step 1 (e.g., Run database migration scripts)
+        - [ ] Step 2 (e.g., Update configuration variables in environment files)
+        - [ ] Step 3
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: verification-plan
+    attributes:
+      label: "🧪 Verification Plan"
+      options:
+        - label: Peer review completed.
+        - label: All CI/CD checks pass successfully in GitHub Actions.

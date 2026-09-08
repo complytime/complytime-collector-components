@@ -106,14 +106,14 @@ Skills provide domain knowledge the agent loads as context when activated. Unlik
 
 ## Key Files
 
-| File | Purpose |
-|------|---------|
-| `.specify/memory/constitution.md` | Organizational governance and coding standards |
-| `docs/AI_TOOLING.md` | This file — AI tooling documentation |
-| `.agents/skills/` | Directory for AI skills — agent-agnostic, auto-discovered by OpenCode |
-| `.opencode/commands/review-pr.md` | PR review command |
-| `specs/` | Feature specifications — SpecKit output |
-| `openspec/` | Feature specifications — OpenSpec output |
+| File                              | Purpose                                                               |
+|-----------------------------------|-----------------------------------------------------------------------|
+| `.specify/memory/constitution.md` | Organizational governance and coding standards                        |
+| `docs/AI_TOOLING.md`              | This file — AI tooling documentation                                  |
+| `.agents/skills/`                 | Directory for AI skills — agent-agnostic, auto-discovered by OpenCode |
+| `.opencode/commands/review-pr.md` | PR review command                                                     |
+| `specs/`                          | Feature specifications — SpecKit output                               |
+| `openspec/`                       | Feature specifications — OpenSpec output                              |
 
 ## Specifications
 

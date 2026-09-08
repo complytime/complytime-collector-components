@@ -1,8 +1,8 @@
 version: "2"
 linters:
-  default: standard   # https://golangci-lint.run/usage/linters/#enabled-by-default
+  default: standard # https://golangci-lint.run/usage/linters/#enabled-by-default
   enable:
-    - gosec           # Security checks for Go code
+    - gosec # Security checks for Go code
   exclusions:
     generated: lax
     presets:
@@ -12,6 +12,6 @@ linters:
       - std-error-handling
 formatters:
   enable:
-    - goimports       # Checks import statements are formatted
+    - goimports # Checks import statements are formatted
   exclusions:
     generated: lax

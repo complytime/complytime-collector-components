@@ -1,0 +1,76 @@
+name: "🚀 Feature"
+description: Propose a new feature, optimization, or improvement
+title: "[Feature] "
+labels: ["type:enhancement"]
+body:
+  - type: textarea
+    id: problem-description
+    attributes:
+      label: "📝 Problem Description"
+      description: A clear and concise description of what the problem or limitation is.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: "💡 Proposed Solution"
+      description: A clear description of what you want to happen and how this feature should look or function.
+    validations:
+      required: true
+
+  - type: textarea
+    id: benefit-if-done
+    attributes:
+      label: "💎 Current customer & Community Benefit — if we do this"
+      description: Who benefits from this and why?
+      placeholder: |
+        e.g., Saves developers 20 minutes per day, reduces API load for self-hosted community instances, cleans up UI noise for end-users
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact-if-not-done
+    attributes:
+      label: "💎 Current customer & Community Benefit — if we DO NOT do this"
+      description: What happens to our current stakeholders if we DO NOT do this?
+      placeholder: |
+        e.g., The team will continue to accumulate manual maintenance debt, API costs will scale linearly with traffic, the user experience remains fragmented and hard to adopt for external community members
+    validations:
+      required: true
+
+  - type: textarea
+    id: validation-plan
+    attributes:
+      label: "🧪 Technical Validation & Verification Plan"
+      description: How should this feature be validated once built?
+      placeholder: |
+        e.g., Provide a script to verify structural data output, benchmark database performance, manually check responsive scaling
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: validation-checklist
+    attributes:
+      label: "🧪 Verification Checklist"
+      options:
+        - label: Automated testing evidence provided (Unit or Integration tests).
+        - label: Feature verified successfully in a target staging environment.
+
+  - type: checkboxes
+    id: definition-of-done-quality
+    attributes:
+      label: "🏁 Definition of Done — 🛠️ Quality & Testing"
+      options:
+        - label: Code has been peer-reviewed for bugs and vulnerabilities.
+        - label: Proper testing has been completed and passed (Unit, Integration, E2E via GitHub Actions).
+        - label: The feature has been demonstrated/validated successfully in the target environment.
+
+  - type: checkboxes
+    id: definition-of-done-docs
+    attributes:
+      label: "🏁 Definition of Done — 📝 Architecture & Docs"
+      options:
+        - label: Usage documentation or changelog updated (if user-facing changes introduced).
+        - label: Local ADR written and verified by Architecture & Alignment Committee if technical architecture deviated.
+        - label: Any newly introduced technical debt has been logged as a GitHub Intake.

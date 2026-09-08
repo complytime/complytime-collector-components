@@ -28,7 +28,7 @@ which gh
 ```
 
 If `gh` is not found: **STOP** with error:
-> "`gh` CLI is not installed. Install it from https://cli.github.com/ or via your package manager."
+> "`gh` CLI is not installed. Install it from <https://cli.github.com/> or via your package manager."
 
 If `gh` is found, verify authentication:
 
@@ -133,7 +133,7 @@ gh api repos/{owner}/{repo}/commits/${BASE_BRANCH}/check-runs \
 **Classification**:
 
 | Base branch status | PR check status | Classification |
-|--------------------|-----------------|----------------|
+| -------------------- | ----------------- | ---------------- |
 | Pass | Fail | **PR-caused** — the PR introduced the failure |
 | Fail | Fail | **Pre-existing** — failure exists independently of the PR |
 | No data | Fail | **Unknown** — treat as PR-caused (conservative) |
@@ -162,7 +162,7 @@ that covers the same verification. Display this matrix
 to make the skip/run decision visible:
 
 | Local tool | CI check that covers it | CI status | Run locally? |
-|------------|------------------------|-----------|--------------|
+| ------------ | ------------------------ | ----------- | -------------- |
 | `go test` | e.g., "Local CI / test" | PASS/FAIL/NONE | Yes/No |
 | `golangci-lint` | e.g., "CI Checks / lint" | PASS/FAIL/NONE | Yes/No |
 | ... | ... | ... | ... |
@@ -181,7 +181,7 @@ Decision rules:
 matrix above:
 
 | Tool detected | Command to run | What it checks |
-|---------------|----------------|----------------|
+| --------------- | ---------------- | ---------------- |
 | Makefile | `make lint` (or `make check`) | Project-defined lint/format/vet |
 | `.golangci.yml` | `golangci-lint run ./...` | Go lint rules |
 | `ruff.toml` / `pyproject.toml` | `ruff check .` | Python lint rules |
@@ -366,7 +366,7 @@ heuristics. Record the focus category for each file
 context):
 
 | Path pattern | Focus category | Additional emphasis |
-|-------------|---------------|-------------------|
+| ------------- | --------------- | ------------------- |
 | `*_test.go`, `*_test.py`, `**/__tests__/**`, `**/*_spec.*` | `test-quality` | Edge cases, assertion strength, mock isolation, test naming |
 | `**/cmd/**`, `**/cli/**` | `cli-ux` | Error messages, flag validation, help text |
 | `**/api/**`, `**/handler/**`, `**/middleware/**`, `**/routes/**` | `security` | Auth, input validation, injection |

@@ -1,0 +1,61 @@
+name: "📚 Epic"
+description: A parent issue that groups a set of user stories toward one outcome.
+title: "[Epic] "
+labels: ["type:epic"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        An epic is a **set of stories**, not a story itself. Size and sprint
+        the child stories. Leave this issue unpointed and off the sprint.
+        After filing, add those stories as GitHub sub-issues of this epic.
+
+  - type: textarea
+    id: outcome
+    attributes:
+      label: "🎯 Outcome"
+      description: What will be true when this epic is complete?
+      placeholder: One or two sentences describing the user or business outcome.
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: "💡 Why this epic"
+      description: Why this work, and why now?
+    validations:
+      required: true
+
+  - type: textarea
+    id: stories
+    attributes:
+      label: "📖 Stories"
+      description: List the user stories in this epic. After this issue is created, add each as a GitHub sub-issue. Do not size this epic.
+      placeholder: |
+        - [ ] [Story] ...
+        - [ ] [Story] ...
+        - [ ] [Story] ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: "🚫 Out of Scope"
+      description: What is explicitly not included in this epic?
+      placeholder: |
+        - [ ] Item 1
+        - [ ] Item 2
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: definition-of-done
+    attributes:
+      label: "🏁 Definition of Done"
+      options:
+        - label: Child stories are filed as GitHub sub-issues of this epic.
+        - label: This epic is not sized; Size lives on the child stories.
+        - label: This epic is not assigned to a sprint; stories are.
+        - label: All child stories are complete and the outcome above is met.
