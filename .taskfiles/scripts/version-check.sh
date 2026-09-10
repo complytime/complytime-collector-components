@@ -10,7 +10,6 @@ cd "$ROOT_DIR"
 FAILED=0
 
 GO_WORK="go.work"
-PROOFWATCH_GOMOD="proofwatch/go.mod"
 MANIFEST="beacon-distro/manifest.yaml"
 
 # Auto-discover go.mod files and Containerfiles with Go base images
@@ -87,21 +86,46 @@ echo ""
 # ── OTel version consistency ────────────────────────────────────
 echo "=== OTel version check ==="
 
-# Stable (v1.x) from proofwatch — the library module tracks the collector pdata series
-OTEL_STABLE=$(sed -n '/^require (/,/^)/p' "$PROOFWATCH_GOMOD" |
-	grep 'go.opentelemetry.io/collector' |
-	grep -oE 'v1\.[0-9]+\.[0-9]+' |
-	sort -V -u | tail -1)
+# Both version series are derived from the manifest — the single source of truth
+# for the collector stack. proofwatch is a separate Go module that only uses pdata
+# and manages its own OTel versions independently.
+# See: https://github.com/complytime/complytime-collector-components/issues/430
 
-# Experimental (v0.x) from manifest — the distro pins component versions explicitly
+# Experimental (v0.x) from manifest components
 OTEL_EXPERIMENTAL=$(grep -E 'go\.opentelemetry\.io/collector/(exporter|processor|receiver)' "$MANIFEST" |
 	grep -v '^\s*#' |
 	grep -oE 'v0\.[0-9]+\.[0-9]+' |
 	sort -V -u | tail -1)
 
-echo "  Source of truth ($PROOFWATCH_GOMOD + $MANIFEST): experimental=$OTEL_EXPERIMENTAL stable=$OTEL_STABLE"
+# Stable (v1.x) from manifest providers (confmap providers use the stable series)
+OTEL_STABLE=$(grep -E 'go\.opentelemetry\.io/collector/confmap/provider' "$MANIFEST" |
+	grep -v '^\s*#' |
+	grep -oE 'v1\.[0-9]+\.[0-9]+' |
+	sort -V -u | tail -1)
 
+if [[ -z "$OTEL_EXPERIMENTAL" ]]; then
+	echo "ERROR: Could not extract experimental (v0.x) OTel version from $MANIFEST"
+	exit 1
+fi
+if [[ -z "$OTEL_STABLE" ]]; then
+	echo "ERROR: Could not extract stable (v1.x) OTel version from $MANIFEST"
+	exit 1
+fi
+
+echo "  Source of truth ($MANIFEST): experimental=$OTEL_EXPERIMENTAL stable=$OTEL_STABLE"
+
+# Modules that are part of the collector stack — proofwatch is excluded because
+# it only depends on pdata and evolves its OTel version independently.
+COLLECTOR_MODULES=()
 for MODULE in "${WORKSPACE_MODULES[@]}"; do
+	if [[ "$MODULE" == "proofwatch" ]]; then
+		echo "  SKIP: $MODULE/go.mod (independent pdata consumer, not part of collector stack)"
+		continue
+	fi
+	COLLECTOR_MODULES+=("$MODULE")
+done
+
+for MODULE in "${COLLECTOR_MODULES[@]}"; do
 	GOMOD="$MODULE/go.mod"
 	if [[ ! -f "$GOMOD" ]]; then
 		continue

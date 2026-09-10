@@ -76,7 +76,9 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-// OPENTELEMETRY VERSION CONSTRAINT
-// ---------------------------------
-// OTel Collector packages are pinned to v1.62.0 to align with beacon-distro.
-// NOT automatically updated by `task dev:deps:update`. See docs/DEVELOPMENT.md for details.
+// OPENTELEMETRY VERSION NOTE
+// --------------------------
+// proofwatch only depends on pdata (stable v1.x series) and manages its own
+// OTel version independently from the collector stack in beacon-distro.
+// Dependabot can bump pdata here without requiring a full collector upgrade.
+// See: https://github.com/complytime/complytime-collector-components/issues/430
