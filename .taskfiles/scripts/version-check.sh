@@ -63,13 +63,19 @@ for GOMOD in "${GO_MODS[@]}"; do
 	fi
 done
 
-# Check CI workflow GO_VERSION pins match the full patch version
+# Check CI workflows use go-version-file (preferred) or a matching GO_VERSION pin
 CI_WORKFLOWS=(
 	".github/workflows/ci_local.yml"
 	".github/workflows/ci_sonarcloud.yml"
 )
 for CI_WF in "${CI_WORKFLOWS[@]}"; do
 	if [[ ! -f "$CI_WF" ]]; then
+		continue
+	fi
+	# Accept go-version-file as the preferred approach — the version is
+	# read from go.mod at CI time, so no hardcoded pin to drift.
+	if grep -qE '^\s*go-version-file:' "$CI_WF"; then
+		echo "  OK: $CI_WF (uses go-version-file)"
 		continue
 	fi
 	CI_GO=$(grep -E '^\s*GO_VERSION:' "$CI_WF" | head -1 | sed 's/.*GO_VERSION:\s*//' | tr -d ' ')
