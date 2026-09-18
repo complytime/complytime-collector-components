@@ -5,7 +5,7 @@ go 1.26.8
 tool github.com/unbound-force/gaze/cmd/gaze
 
 require (
-	github.com/gemaraproj/go-gemara v0.9.2
+	github.com/gemaraproj/go-gemara v0.10.0
 	github.com/stretchr/testify v1.12.1
 	github.com/telophasehq/go-ocsf v0.2.1
 	go.opentelemetry.io/collector/pdata v1.66.0
