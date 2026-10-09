@@ -1,6 +1,6 @@
 module github.com/complytime/complybeacon
 
-go 1.26.8
+go 1.26.9
 
 tool github.com/unbound-force/gaze/cmd/gaze
 
