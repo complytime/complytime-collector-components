@@ -1,6 +1,6 @@
 module github.com/complytime/complybeacon/tests/integration
 
-go 1.26.8
+go 1.26.9
 
 require (
 	github.com/onsi/ginkgo/v2 v2.32.0
