@@ -13,7 +13,7 @@ gates.
   stable logger-provider accessor exposed by `go.opentelemetry.io/otel`.
 - Preserve the existing `NewProofWatch` option behavior so an explicitly
   configured logger provider continues to override the global default.
-- Verify both default and custom logger-provider construction paths.
+- Run the existing default, custom, and nil logger-provider construction tests.
 - Keep the change limited to the OpenTelemetry v1.47.0 compatibility fix.
 
 ## Capabilities
@@ -29,8 +29,8 @@ _(none - this is an implementation compatibility fix with no requirement changes
 ## Impact
 
 - `proofwatch/proofwatch.go`: imports and default logger-provider selection.
-- `proofwatch/proofwatch_test.go`: regression coverage for default and custom
-  logger providers.
+- Existing `proofwatch/proofwatch_test.go` construction tests remain the
+  regression gate; no new behavior or test framework is required.
 - OpenTelemetry Go API v1.47.0 compatibility and the `task lint` and `task test`
   quality gates.
 - No public ProofWatch API or generated files are changed.

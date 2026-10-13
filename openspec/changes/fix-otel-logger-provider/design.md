@@ -15,7 +15,8 @@ See `proposal.md` for the motivation and scope.
 - Select the default logger provider through the stable OpenTelemetry API.
 - Preserve option ordering so `WithLoggerProvider` continues to override the
   process-wide default.
-- Keep default, custom, and nil-provider construction paths covered by tests.
+- Keep the existing default, custom, and nil-provider construction paths
+  passing without expanding their behavior.
 
 **Non-Goals:**
 
@@ -46,21 +47,18 @@ The alternative is to resolve missing providers after options are applied. That
 would broaden the change and could alter nil-option behavior across all provider
 types.
 
-### Verify through existing construction paths
+### Use the existing construction tests
 
 Use the existing `TestNewProofWatch` default, custom-provider, and nil-provider
-cases as regression coverage. Add only the assertions needed to prove logger
-construction and custom-provider selection if the current assertions do not
-distinguish those paths.
+cases as the regression gate. `WithLoggerProvider(nil)` already ignores nil and
+therefore retains the initialized global default. This migration does not alter
+that option behavior and does not require new test infrastructure.
 
 ## Risks / Trade-offs
 
-- [Risk] Tests that only assert a non-nil logger may miss use of the wrong
-  provider. -> Mitigation: assert provider interaction or identity where the
-  OpenTelemetry interfaces permit it without coupling to internals.
 - [Risk] Expanding provider tests could turn a one-line migration into a broad
-  refactor. -> Mitigation: keep changes inside `proofwatch.go` and its focused
-  tests.
+  refactor. -> Mitigation: rely on the existing construction tests and keep the
+  source change inside `proofwatch.go`.
 
 ## Migration Plan
 
