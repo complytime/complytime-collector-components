@@ -1,0 +1,36 @@
+# Proposal
+
+## Why
+
+The OpenTelemetry Go API v1.47.0 deprecates the global logger-provider package
+used by ProofWatch, causing `golangci-lint` to report SA1019. ProofWatch must use
+the stable API before the dependency upgrade can pass the repository's quality
+gates.
+
+## What Changes
+
+- Replace the deprecated `go.opentelemetry.io/otel/log/global` usage with the
+  stable logger-provider accessor exposed by `go.opentelemetry.io/otel`.
+- Preserve the existing `NewProofWatch` option behavior so an explicitly
+  configured logger provider continues to override the global default.
+- Verify both default and custom logger-provider construction paths.
+- Keep the change limited to the OpenTelemetry v1.47.0 compatibility fix.
+
+## Capabilities
+
+### New Capabilities
+
+_(none - this change does not introduce new behavior)_
+
+### Modified Capabilities
+
+_(none - this is an implementation compatibility fix with no requirement changes)_
+
+## Impact
+
+- `proofwatch/proofwatch.go`: imports and default logger-provider selection.
+- `proofwatch/proofwatch_test.go`: regression coverage for default and custom
+  logger providers.
+- OpenTelemetry Go API v1.47.0 compatibility and the `task lint` and `task test`
+  quality gates.
+- No public ProofWatch API or generated files are changed.
