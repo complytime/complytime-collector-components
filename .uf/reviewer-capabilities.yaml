@@ -1,0 +1,46 @@
+# Canonical eligibility policy for Divisor personas.
+version: 1
+
+reviewers:
+  - agent: divisor-adversary
+    capability: review
+    scopes:
+      - security
+      - dependencies
+      - standard
+  - agent: divisor-architect
+    capability: review
+    scopes:
+      - standard
+      - cli-ux
+      - ci-cd
+      - documentation
+  - agent: divisor-curator
+    capability: review
+    scopes:
+      - documentation
+  - agent: divisor-guard
+    capability: review
+    scopes:
+      - standard
+      - cli-ux
+      - documentation
+  - agent: divisor-sre
+    capability: review
+    scopes:
+      - ci-cd
+      - dependencies
+      - security
+  - agent: divisor-testing
+    capability: review
+    scopes:
+      - test-quality
+  - agent: divisor-envoy
+    capability: content
+    scopes: []
+  - agent: divisor-herald
+    capability: content
+    scopes: []
+  - agent: divisor-scribe
+    capability: content
+    scopes: []

@@ -1,0 +1,66 @@
+# Canonical model policy for Divisor review dispatch.
+version: 3
+
+profiles:
+  lightweight:
+    model: openai/gpt-5.6-luna
+  standard:
+    model: openai/gpt-5.6-terra
+  heavy:
+    model: openai/gpt-5.6-sol
+
+defaults:
+  code: standard
+  spec: standard
+  triage: standard
+  feedback: standard
+
+always:
+  divisor-adversary: heavy
+  divisor-sre: lightweight
+
+advisor:
+  code:
+    - divisor-adversary
+    - divisor-architect
+    - divisor-curator
+    - divisor-guard
+    - divisor-sre
+    - divisor-testing
+  spec:
+    - divisor-adversary
+    - divisor-architect
+    - divisor-curator
+    - divisor-guard
+    - divisor-sre
+    - divisor-testing
+  triage:
+    - divisor-adversary
+    - divisor-architect
+    - divisor-curator
+    - divisor-guard
+    - divisor-sre
+    - divisor-testing
+  feedback:
+    - divisor-adversary
+    - divisor-architect
+    - divisor-curator
+    - divisor-guard
+    - divisor-sre
+    - divisor-testing
+
+runs: {}
+
+risk_augmentation:
+  enabled: true
+  agents:
+    - divisor-adversary
+    - divisor-architect
+
+limits:
+  max_personas: 16
+  max_runs_per_persona: 3
+  max_total_runs: 24
+  max_parallel_runs: 4
+  per_run_timeout_seconds: 600
+  max_reported_cost_usd: 25
