@@ -1,6 +1,6 @@
 # Tasks
 
-## 1. Stable Logger Provider Migration
+## 1. Stable Logger Provider Migration and Dependency Alignment
 
 - [x] 1.1 Replace the deprecated `log/global` import and
   `global.GetLoggerProvider()` call in `proofwatch/proofwatch.go` with
@@ -8,6 +8,9 @@
   `TestNewProofWatch` passes.
 - [x] 1.2 Run the existing `TestNewProofWatch` default, custom-provider, and
   nil-provider subtests and verify all pass without changing option behavior.
+- [x] 1.3 Align the direct OpenTelemetry API and SDK modules on v1.47.0,
+  accept only their required indirect dependency updates, and verify the module
+  graph with `go mod verify`.
 
 ## 2. Repository Quality Gates
 
@@ -23,10 +26,8 @@
 - [x] Step 3: Clarify (Step 1) -- skipped (OpenSpec)
 - [x] Step 4: Plan (Step 2) -- skipped (OpenSpec)
 - [x] Step 5: Tasks (Step 3) -- skipped (OpenSpec)
-- [x] Step 6: Spec Review (Step 4) -- iteration: 2/3 PASSED
-- [x] Step 7: Implement (Step 5) -- all 2 phases complete, lint/test PASS
-- [ ] Step 8: Code Review (Step 6)
-- [ ] Step 9: Retrospective (Step 7)
+- [ ] Step 6: Spec Review (Step 4) -- scope expanded after prior review
+- [x] Step 7: Implement (Step 5) -- full v1.47.0 alignment complete
+- [ ] Step 8: Code Review (Step 6) -- required for expanded scope
+- [ ] Step 9: Retrospective (Step 7) -- rerun after expanded-scope review
 - [ ] Step 10: Demo (Step 8)
-
-<!-- spec-review: passed -->
