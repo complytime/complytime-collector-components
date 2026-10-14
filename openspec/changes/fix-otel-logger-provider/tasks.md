@@ -28,8 +28,10 @@
 - [x] Step 3: Clarify (Step 1) -- skipped (OpenSpec)
 - [x] Step 4: Plan (Step 2) -- skipped (OpenSpec)
 - [x] Step 5: Tasks (Step 3) -- skipped (OpenSpec)
-- [ ] Step 6: Spec Review (Step 4) -- iteration: 1/3 advisories addressed
+- [x] Step 6: Spec Review (Step 4) -- iteration: 2/3 PASSED
 - [x] Step 7: Implement (Step 5) -- full v1.47.0 alignment complete
 - [ ] Step 8: Code Review (Step 6) -- required for expanded scope
 - [ ] Step 9: Retrospective (Step 7) -- rerun after expanded-scope review
 - [ ] Step 10: Demo (Step 8)
+
+<!-- spec-review: passed -->
