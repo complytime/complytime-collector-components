@@ -30,8 +30,9 @@
 - [x] Step 5: Tasks (Step 3) -- skipped (OpenSpec)
 - [x] Step 6: Spec Review (Step 4) -- iteration: 2/3 PASSED
 - [x] Step 7: Implement (Step 5) -- full v1.47.0 alignment complete
-- [ ] Step 8: Code Review (Step 6) -- required for expanded scope
-- [ ] Step 9: Retrospective (Step 7) -- rerun after expanded-scope review
-- [ ] Step 10: Demo (Step 8)
+- [x] Step 8: Code Review (Step 6) -- iteration: 1/3 PASSED (APPROVE)
+- [x] Step 9: Retrospective (Step 7) -- Dewey unavailable; learning reported
+- [x] Step 10: Demo (Step 8)
 
 <!-- spec-review: passed -->
+<!-- code-review: passed -->
