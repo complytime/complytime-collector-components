@@ -3,7 +3,7 @@
 # Stage 2: Create minimal runtime image with UBI Minimal base
 
 # Stage 1: Build the OpenTelemetry Collector
-FROM golang:1.26.8@sha256:3c3e25a4da13fd0478eed2df1eb35a0e667094a7124d3993a6a1d30f71c17e79 AS build-stage
+FROM golang:1.26.9@sha256:37cfcca63222ec499bec5e8ad7aad52dbf7529db36d5812b8eae2f0621aa92d6 AS build-stage
 WORKDIR /build
 
 # Build the collector using the OpenTelemetry collector builder
