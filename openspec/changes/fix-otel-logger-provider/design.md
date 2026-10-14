@@ -67,7 +67,9 @@ set and require additional overlapping changes to `go.mod` and `go.sum`.
 Use the existing `TestNewProofWatch` default, custom-provider, and nil-provider
 cases as the regression gate. `WithLoggerProvider(nil)` already ignores nil and
 therefore retains the initialized global default. This migration does not alter
-that option behavior and does not require new test infrastructure.
+that option behavior or the default-before-options ordering. A new behavioral
+test for the unchanged option implementation would expand this dependency and
+accessor migration beyond its intended scope.
 
 ## Risks / Trade-offs
 
@@ -80,6 +82,9 @@ that option behavior and does not require new test infrastructure.
 
 ## Migration Plan
 
-Replace the deprecated import and accessor, run the focused ProofWatch tests,
-then run `task lint` and `task test`. Rollback is the inverse source change; no
-data, configuration, or deployment migration is required.
+Replace the deprecated import and accessor, align the module graph, run the
+focused ProofWatch tests, then run `task lint`, `task test`, and
+`task version:check`. Rollback reverts `proofwatch/proofwatch.go`,
+`proofwatch/go.mod`, and `proofwatch/go.sum`; rerun `go mod tidy`,
+`go mod verify`, and the repository quality gates afterward. No data,
+configuration, or deployment migration is required.
