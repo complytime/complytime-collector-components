@@ -7,7 +7,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	olog "go.opentelemetry.io/otel/log"
-	"go.opentelemetry.io/otel/log/global"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
@@ -30,7 +29,7 @@ type ProofWatch struct {
 func NewProofWatch(opts ...OptionFunc) (*ProofWatch, error) {
 	cfg := config{
 		MeterProvider:  otel.GetMeterProvider(),
-		LoggerProvider: global.GetLoggerProvider(),
+		LoggerProvider: otel.GetLoggerProvider(),
 		TracerProvider: otel.GetTracerProvider(),
 	}
 	for _, opt := range opts {
