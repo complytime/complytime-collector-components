@@ -9,25 +9,38 @@ cd "$ROOT_DIR"
 
 FAILED=0
 
-GO_WORK="go.work"
+GO_VERSION_SOURCE="go.mod"
 MANIFEST="beacon-distro/manifest.yaml"
 
-# Auto-discover go.mod files and Containerfiles with Go base images
-mapfile -t GO_MODS < <(find . -name go.mod -not -path '*/vendor/*' -print | sort || true)
-mapfile -t CONTAINERFILES < <(grep -rl '^FROM golang:' . --include='Containerfile*' --include='Dockerfile*' 2>/dev/null | sort || true)
+# Discover only tracked modules so local workspace state and untracked fixtures
+# cannot change the validation inputs.
+if ! GO_MODS_OUTPUT=$(git ls-files -- 'go.mod' '**/go.mod' | LC_ALL=C sort); then
+	echo "ERROR: Could not discover tracked Go module files" >&2
+	exit 1
+fi
+mapfile -t GO_MODS <<<"$GO_MODS_OUTPUT"
 
-# Workspace modules (from go.work use block) — these carry OTel deps
-mapfile -t WORKSPACE_MODULES < <(sed -n '/^use (/,/^)/{ s/^[[:space:]]*\.\///p }' "$GO_WORK" || true)
+if CONTAINERFILES_OUTPUT=$(git grep -l '^FROM golang:' -- \
+	':(glob)**/Containerfile*' ':(glob)**/Dockerfile*'); then
+	mapfile -t CONTAINERFILES < <(printf '%s\n' "$CONTAINERFILES_OUTPUT" | LC_ALL=C sort)
+else
+	GIT_GREP_STATUS=$?
+	if [[ "$GIT_GREP_STATUS" -ne 1 ]]; then
+		echo "ERROR: Could not discover tracked Go Containerfiles" >&2
+		exit 1
+	fi
+	CONTAINERFILES=()
+fi
 
 # ── Go version alignment ────────────────────────────────────────
 echo "=== Go version check ==="
 
-GO_VERSION=$(sed -n 's/^go \([0-9]*\.[0-9]*\.[0-9]*\)/\1/p' "$GO_WORK" | head -1)
+GO_VERSION=$(sed -n 's/^go \([0-9]*\.[0-9]*\.[0-9]*\)/\1/p' "$GO_VERSION_SOURCE" | head -1)
 if [[ -z "$GO_VERSION" ]]; then
-	echo "ERROR: Could not extract Go version from $GO_WORK"
+	echo "ERROR: Could not extract Go version from $GO_VERSION_SOURCE"
 	exit 1
 fi
-echo "  Source of truth ($GO_WORK): $GO_VERSION"
+echo "  Source of truth ($GO_VERSION_SOURCE): $GO_VERSION"
 
 for GOMOD in "${GO_MODS[@]}"; do
 	MOD_VERSION=$(sed -n 's/^go \([0-9]*\.[0-9]*\.[0-9]*\)/\1/p' "$GOMOD" | head -1)
@@ -123,19 +136,15 @@ echo "  Source of truth ($MANIFEST): experimental=$OTEL_EXPERIMENTAL stable=$OTE
 # Modules that are part of the collector stack — proofwatch is excluded because
 # it only depends on pdata and evolves its OTel version independently.
 COLLECTOR_MODULES=()
-for MODULE in "${WORKSPACE_MODULES[@]}"; do
-	if [[ "$MODULE" == "proofwatch" ]]; then
-		echo "  SKIP: $MODULE/go.mod (independent pdata consumer, not part of collector stack)"
+for GOMOD in "${GO_MODS[@]}"; do
+	if [[ "$GOMOD" == "proofwatch/go.mod" ]]; then
+		echo "  SKIP: $GOMOD (independent pdata consumer, not part of collector stack)"
 		continue
 	fi
-	COLLECTOR_MODULES+=("$MODULE")
+	COLLECTOR_MODULES+=("$GOMOD")
 done
 
-for MODULE in "${COLLECTOR_MODULES[@]}"; do
-	GOMOD="$MODULE/go.mod"
-	if [[ ! -f "$GOMOD" ]]; then
-		continue
-	fi
+for GOMOD in "${COLLECTOR_MODULES[@]}"; do
 
 	EXP_VERSIONS=$(grep -E 'go\.opentelemetry\.io/collector/[^/]+' "$GOMOD" |
 		grep -v 'go.opentelemetry.io/contrib' |

@@ -273,8 +273,10 @@ You can automate most of this with `task dev:release-prep`.
    format.
 
 5. **Verify dependency versions are aligned.**
-   Run `task version:check` to confirm Go and OTel dependency versions are consistent
-   across all modules, Containerfiles, CI workflows, and docs.
+   Run `task version:check` to confirm Go and OTel versions are consistent across
+   tracked Go modules, Go-based Containerfiles and Dockerfiles, supported CI
+   workflows, and `beacon-distro/manifest.yaml`. The command is read-only and
+   derives the expected Go version from the tracked root `go.mod`.
 
 6. **Run `task check` locally.**
    This runs all quality gates (lint + test) against your local checkout.
