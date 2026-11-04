@@ -9,6 +9,8 @@ tasks:
 
   check:
     desc: Validate version alignment (read-only, for CI)
-    deps:
-      - task: :dev:workspace
     cmd: bash {{.ROOT_DIR}}/.taskfiles/scripts/version-check.sh
+
+  test:
+    desc: Run version validation regression coverage
+    cmd: bash {{.ROOT_DIR}}/.taskfiles/scripts/version-check-test.sh

@@ -231,14 +231,26 @@ task codegen:weaver-semantic-check     # Validate logs against semantic conventi
 
 ### Version Management
 
-The project prevents version drift between the Go modules and the beacon-distro collector distribution. Version checks run automatically with `task test` and block CI if versions diverge.
+The project prevents version drift between tracked Go modules, Go container images,
+CI configuration, and the beacon-distro collector distribution. `task test` runs
+version validation before unit tests, and CI blocks on drift.
 
 ```bash
-task version:check-otel-versions       # Check alignment
-task version:sync-otel-versions        # Sync beacon-distro with proofwatch
-task version:check-go-version          # Verify Go version compatibility
-task version:check-go-mod-consistency  # Check OTel dependency consistency
+task version:check  # Validate tracked declarations without modifying the working tree
+task version:test   # Run version-validation regression coverage
+task version:sync   # Update version consumers; modifies the working tree
 ```
+
+`task version:check` derives the expected Go version from the tracked root
+[`go.mod`](./go.mod). It compares that declaration with tracked `go.mod` files,
+tracked Go-based `Containerfile*` and `Dockerfile*` files, and supported CI
+workflows. It also validates collector OpenTelemetry versions using
+[`beacon-distro/manifest.yaml`](./beacon-distro/manifest.yaml). The check does
+not create, modify, or read `go.work`, so local workspace state and the installed
+Go patch version cannot affect its result.
+
+Use `task version:sync` to update version consumers after intentionally changing
+versions, then run `task version:check` to validate the tracked result.
 
 ### Container Image
 

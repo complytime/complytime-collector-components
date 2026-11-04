@@ -143,6 +143,29 @@ Each release publishes **both versions together**:
 
 **Why the constraint?** Contrib packages (used in `beacon-distro/manifest.yaml`) release 1-2 versions behind the main collector packages. Blindly upgrading to the latest OTel version causes build failures when contrib packages don't exist yet.
 
+### Version Validation
+
+Run the read-only validation command from the repository root:
+
+```bash
+task version:check
+```
+
+For Go-version alignment, the tracked root `go.mod` file is the source of truth.
+The command compares its `go` directive with tracked `go.mod` files, tracked
+Go-based `Containerfile*` and `Dockerfile*` files, and the supported CI workflows.
+It validates collector OpenTelemetry versions against
+`beacon-distro/manifest.yaml`.
+
+`task version:check` does not create, modify, or use `go.work`. An absent, stale,
+or untracked workspace file and the installed Go patch version therefore do not
+change the validation result. Use `task version:test` to run the corresponding
+regression coverage.
+
+`task version:sync` is the mutating companion command. It prepares the workspace
+and updates version consumers; run `task version:check` afterward to validate the
+tracked declarations.
+
 ### How to Upgrade OpenTelemetry Collector
 
 **Important:** OTel packages are **not** upgraded automatically by `task dev:deps:update`. Follow this process:
